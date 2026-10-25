@@ -1,0 +1,44 @@
+joined 50/50 in 602 ms (simultaneous HTTP joins)
+50 player sockets + 0 spectators + 1 host connected
+{
+  "players": 50,
+  "spectators": 0,
+  "roundsScored": 5,
+  "finished": true,
+  "windowMs": 6000,
+  "ackLatencyMs": {
+    "n": 250,
+    "p50": 6,
+    "p95": 12,
+    "p99": 13,
+    "max": 13
+  },
+  "resultAfterDeadlineMs": {
+    "p50": 784,
+    "p95": 794,
+    "max": 794,
+    "note": "deadline → round:result received (includes the 750 ms answer grace)"
+  },
+  "answers": {
+    "accepted": 250,
+    "rejected": 0,
+    "persistedInScoredRounds": 250,
+    "duplicatesInDb": 0
+  },
+  "scoring": {
+    "expectedOutcomeRows": 250,
+    "actualOutcomeRows": 250,
+    "missing": 0
+  },
+  "unexpectedDisconnects": 0,
+  "serverProcess": {
+    "cpuSeconds": 2.2,
+    "peakRssMB": 690,
+    "eventLoopDelayMs": {
+      "mean": 16,
+      "p99": 21.8,
+      "max": 228.6
+    }
+  },
+  "caveat": "In-process, PGlite (not Supabase), clients and server on one machine, no network latency. Not a capacity proof."
+}

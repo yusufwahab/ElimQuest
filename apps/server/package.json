@@ -1,0 +1,41 @@
+{
+  "name": "@elimquest/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.mjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.mjs --packages=external --alias:@elimquest/game-core=../../packages/game-core/src/index.ts --alias:@elimquest/contracts=../../packages/contracts/src/index.ts --alias:@elimquest/config=../../packages/config/src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/db/migrate-cli.ts"
+  },
+  "dependencies": {
+    "@elimquest/config": "*",
+    "@elimquest/contracts": "*",
+    "@elimquest/game-core": "*",
+    "@electric-sql/pglite": "^0.5.11",
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.7.0",
+    "jose": "^6.2.13",
+    "papaparse": "^5.7.0",
+    "pg": "^8.16.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.19.2",
+    "@types/papaparse": "^5.3.16",
+    "@types/pg": "^8.15.5",
+    "@types/qrcode": "^1.5.5",
+    "esbuild": "^0.25.0",
+    "socket.io-client": "^4.8.4",
+    "typescript": "~6.0.3"
+  }
+}

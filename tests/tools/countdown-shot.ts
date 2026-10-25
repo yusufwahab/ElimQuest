@@ -1,0 +1,27 @@
+// Screenshots the on-stairs 3-2-1 countdown (phone). Needs `vite preview --port 4174` proxying to :8790.
+import { chromium } from '@playwright/test';
+import { io } from 'socket.io-client';
+import { createApp } from '../../apps/server/src/app';
+const app = await createApp({ NODE_ENV: 'test', DB_DRIVER: 'pglite', AUTH_MODE: 'dev', EMAIL_MODE: 'log', RATE_LIMIT_DISABLED: 'true', ALLOW_FIXTURE_QUESTIONS: 'true', LOG_LEVEL: 'error' });
+await app.listen(8790);
+const base = 'http://127.0.0.1:8790';
+const j = async (m: string, p: string, b?: unknown, h: Record<string, string> = {}) => { const r = await fetch(base + p, { method: m, headers: { 'content-type': 'application/json', ...h }, body: b ? JSON.stringify(b) : undefined }); return { s: r.status, b: (await r.json().catch(() => ({}))) as any }; };
+const reg = await j('POST', '/api/dev-auth/register', { email: `cd${Date.now()}@x.com`, password: 'password123', displayName: 'Cd' });
+const topics = (await j('GET', '/api/topics')).b.topics.map((t: any) => t.id);
+const g = (await j('POST', '/api/games', { title: 'cd', hostMode: 'audience', categoryIds: topics, minLevel: 1, maxLevel: 10, settings: { questionLimit: 10, summitHeight: 5, timeLimitS: 5, maxPlayers: 20 }, openNow: true }, { authorization: `Bearer ${reg.b.token}` })).b;
+await j('POST', `/api/rooms/${g.code}/join`, { nickname: 'Bot' });
+const b = await chromium.launch();
+const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+await page.goto(`http://localhost:4174/join/${g.code}`);
+await page.getByLabel('Nickname').fill('Yusuf');
+await page.getByRole('button', { name: /join game/i }).click();
+await page.waitForURL(/lobby/);
+const host = io(base, { auth: { code: g.code, accessToken: reg.b.token }, transports: ['websocket'] });
+await new Promise((r) => host.on('connect', r));
+await host.emitWithAck('host', { cmd: 'start' });
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${process.argv[2]}/countdown.png` });
+await page.waitForSelector('input[name="answer"]', { state: 'attached', timeout: 15000 });
+const t = await page.evaluate(() => document.querySelector('[role=timer]')?.textContent);
+console.log('question opened with timer:', t);
+await b.close(); host.close(); await app.close(); process.exit(0);

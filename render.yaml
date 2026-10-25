@@ -1,0 +1,27 @@
+# Render blueprint for the API + Socket.IO server (free plan for the pilot; upgrade only with the owner's approval).
+# Secrets are declared with sync:false and must be entered in the Render dashboard — never committed.
+services:
+  - type: web
+    name: elimquest-api
+    runtime: node
+    plan: free
+    region: frankfurt            # choose the region closest to your Supabase project and players
+    buildCommand: npm ci && npm run build -w @elimquest/server
+    startCommand: node apps/server/dist/index.mjs
+    healthCheckPath: /readyz
+    autoDeploy: false
+    envVars:
+      - { key: NODE_ENV, value: production }
+      - { key: DB_DRIVER, value: pg }
+      - { key: AUTH_MODE, value: supabase }
+      - { key: EMAIL_MODE, value: brevo }
+      - { key: MAX_PLAYERS_PER_ROOM, value: "50" }     # raise only after load tests on this infrastructure
+      - { key: MAX_ACTIVE_ROOMS, value: "2" }
+      - { key: DB_POOL_MAX, value: "5" }
+      - { key: DATABASE_URL, sync: false }
+      - { key: SUPABASE_URL, sync: false }
+      - { key: ALLOWED_ORIGINS, sync: false }          # https://your-domain
+      - { key: PUBLIC_WEB_URL, sync: false }
+      - { key: BREVO_API_KEY, sync: false }
+      - { key: BREVO_SENDER_EMAIL, sync: false }
+      - { key: REDIS_URL, sync: false }                # optional

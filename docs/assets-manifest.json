@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "note": "Placeholders only. 'status' becomes 'final' when production art replaces the code-drawn component.",
+  "assets": [
+    { "id": "hero", "file": "apps/web/src/components/art.tsx#HeroArt", "purpose": "Landing hero (desktop + mobile compositions)", "dimensions": "inline SVG (1600x800, 600x420)", "bytes": "~8 KB in JS", "author": "generated in code", "licence": "project-owned", "variant": "desktop+mobile", "priority": "critical", "status": "placeholder" },
+    { "id": "staircase", "file": "apps/web/src/scene/staircase.ts", "purpose": "Gameplay staircase (procedural, step geometry in geom())", "dimensions": "responsive canvas", "bytes": "~7 KB (+Phaser 357 KB gzip, lazy)", "author": "generated in code", "licence": "project-owned; Phaser MIT", "variant": "single", "priority": "game", "status": "placeholder" },
+    { "id": "avatars", "file": "apps/web/src/components/Avatar.tsx", "purpose": "Customisable non-human avatars (body/eyes/glasses/headwear/gear)", "dimensions": "120x140 viewBox", "bytes": "~3 KB", "author": "generated in code", "licence": "project-owned", "variant": "front+back", "priority": "critical", "status": "placeholder" },
+    { "id": "category-art", "file": "apps/web/src/components/art.tsx#CategoryArt", "purpose": "Topic card illustrations", "dimensions": "320x180 SVG", "bytes": "~2 KB", "author": "generated in code", "licence": "project-owned", "variant": "per category", "priority": "high", "status": "placeholder" },
+    { "id": "emblem", "file": "apps/web/public/favicon.svg", "purpose": "Brand emblem / favicon", "dimensions": "64x64 SVG", "bytes": "<1 KB", "author": "generated in code", "licence": "project-owned", "variant": "single", "priority": "high", "status": "placeholder" },
+    { "id": "fonts", "file": "@fontsource-variable/inter, @fontsource-variable/source-serif-4, @fontsource/noto-naskh-arabic", "purpose": "UI sans, display serif, Arabic", "dimensions": "woff2 subsets", "bytes": "per-subset, unicode-range loaded", "author": "Inter (Rasmus Andersson), Source Serif 4 (Adobe), Noto Naskh Arabic (Google)", "licence": "SIL OFL 1.1", "variant": "latin/arabic", "priority": "critical", "status": "final" },
+    { "id": "sfx", "file": "apps/web/src/lib/sound.ts", "purpose": "Optional UI sounds (WebAudio synth)", "dimensions": "n/a", "bytes": "<1 KB", "author": "generated in code", "licence": "project-owned", "variant": "5 cues", "priority": "low", "status": "placeholder" }
+  ]
+}
