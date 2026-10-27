@@ -24,6 +24,8 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
   const text = await res.text();
   let data: any;
   try { data = text ? JSON.parse(text) : undefined; } catch { data = text; }
+  // A 200 that is a web page means the API address is wrong (the host's SPA fallback answered), not a real reply.
+  if (res.ok && typeof data === 'string' && /^\s*</.test(data)) throw new ApiError(0, 'Cannot reach the game server (the API address is not set correctly).', 'network');
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`, data?.code ?? 'error', data?.details, data?.issues);
   return data as T;
 }

@@ -57,6 +57,7 @@ function AccountMenu() {
   return (
     <div className="flex items-center gap-2">
       <NavLink to="/dashboard" className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-semibold hover:bg-white/10">Dashboard</NavLink>
+      {user.role !== 'member' && <NavLink to="/admin" className="inline-flex min-h-11 items-center rounded-lg bg-amber/15 px-3 py-2 text-sm font-semibold text-amber hover:bg-amber/25">Admin area</NavLink>}
       <NavLink to="/account" className="inline-flex min-h-11 max-w-32 items-center truncate rounded-lg px-3 py-2 text-sm hover:bg-white/10" title={user.email}>{user.displayName}</NavLink>
       <Button variant="ghost" className="!min-h-10 !px-3 text-sm" onClick={async () => { await signOut(); nav('/'); }}>Sign out</Button>
     </div>
@@ -86,7 +87,7 @@ export function Navbar({ transparent = false }: { transparent?: boolean }) {
           <NavLink to="/how-it-works" className={link}>How it works</NavLink>
           <NavLink to="/practice" className={link}>Practise solo</NavLink>
           <div className="py-1"><AdventurerChip /></div>
-          {user ? <><NavLink to="/dashboard" className={link}>Dashboard</NavLink><NavLink to="/account" className={link}>Account</NavLink></> : <NavLink to="/sign-in" className={link}>Sign in</NavLink>}
+          {user ? <><NavLink to="/dashboard" className={link}>Dashboard</NavLink>{user.role !== 'member' && <NavLink to="/admin" className={link}>Admin area</NavLink>}<NavLink to="/account" className={link}>Account</NavLink></> : <NavLink to="/sign-in" className={link}>Sign in</NavLink>}
         </div>
       )}
     </header>

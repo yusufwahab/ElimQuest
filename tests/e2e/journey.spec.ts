@@ -8,12 +8,12 @@ const shot = async (p: Page, name: string) => { if (SHOTS) { mkdirSync(SHOTS, { 
 export async function signUpWithCode(page: Page, name: string, email: string, password = 'password123') {
   await page.getByLabel('Display name').fill(name);
   await page.getByLabel('Email').fill(email);
-  await page.getByRole('button', { name: /send me a code/i }).click();
+  await page.getByLabel('Choose a password').fill(password);
+  await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
   const code = (await page.locator('strong.tracking-widest').innerText()).trim();
   await page.getByLabel('6-digit code').fill(code);
-  await page.getByLabel('Choose a password').fill(password);
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.getByRole('button', { name: /verify and create account/i }).click();
 }
 
 async function guest(browser: Browser, code: string, name: string, viewport = { width: 1280, height: 800 }, html = false) {

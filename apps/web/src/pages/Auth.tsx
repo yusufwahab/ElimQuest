@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { brand } from '@elimquest/config';
 import { useAuth } from '../lib/auth';
@@ -38,12 +38,11 @@ function PasswordInput({ label, value, onChange, error, autoComplete, hint }: { 
 }
 
 /**
- * Sign-up in two steps. 1) name + email → we email a 6-digit code (through Brevo). 2) code + chosen password → only now is the
+ * Sign-up in two steps. 1) name + email + password → we email a 6-digit code (through Brevo); the password stays in the browser. 2) the code alone → only now is the
  * account created. Nothing exists until the email is proven, so mistyped or fake addresses leave no junk accounts.
  */
-function SignUpFlow({ dest, fromState }: { dest: string; fromState: unknown }) {
+function SignUpFlow({ fromState }: { fromState: unknown }) {
   const auth = useAuth();
-  const nav = useNavigate();
   const [step, setStep] = useState<'details' | 'code'>('details');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -55,7 +54,6 @@ function SignUpFlow({ dest, fromState }: { dest: string; fromState: unknown }) {
   const [note, setNote] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [devCode, setDevCode] = useState<string | null>(null);
-  const pwRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (cooldown <= 0) return; const t = setTimeout(() => setCooldown((c) => c - 1), 1000); return () => clearTimeout(t); }, [cooldown]);
 
   const sendCode = async (isResend: boolean) => {
@@ -79,14 +77,14 @@ function SignUpFlow({ dest, fromState }: { dest: string; fromState: unknown }) {
     e.preventDefault();
     if (name.trim().length < 1) { setErr('Please enter a display name.'); return; }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setErr('Please enter a valid email address.'); return; }
+    if (password.length < 8) { setErr('Password must be at least 8 characters.'); return; }
     void sendCode(false);
   };
   const submitCode = async (e: FormEvent) => {
     e.preventDefault();
     if (code.length !== 6) { setCodeErr('Enter the 6-digit code from your email.'); return; }
-    if (password.length < 8) { setErr('Password must be at least 8 characters.'); return; }
     setBusy(true); setErr(null); setCodeErr(null);
-    try { await auth.completeSignup(email.trim().toLowerCase(), code, password, name.trim()); nav(dest, { replace: true }); }
+    try { await auth.completeSignup(email.trim().toLowerCase(), code, password, name.trim()); }   // signed in now: the redirect below picks the right home for this role
     catch (x) {
       const msg = errMsg(x);
       if (x instanceof ApiError && ['bad_code', 'locked'].includes(x.code)) { setCodeErr(msg); setCode(''); }
@@ -101,8 +99,9 @@ function SignUpFlow({ dest, fromState }: { dest: string; fromState: unknown }) {
         <form className="grid gap-4" noValidate onSubmit={submitDetails}>
           <Input label="Display name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="nickname" required maxLength={40} />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required hint="We’ll email you a 6-digit code to confirm it’s yours." />
+          <PasswordInput label="Choose a password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 8 characters." />
           {err && <Alert tone="error">{err}</Alert>}
-          <Button type="submit" loading={busy}>Send me a code</Button>
+          <Button type="submit" loading={busy}>Continue</Button>
         </form>
         <p className="flex min-h-11 flex-wrap items-center gap-1 text-sm">Already have an account? <Link className="inline-flex min-h-11 items-center underline" to="/sign-in" state={fromState}>Sign in</Link></p>
       </Shell>
@@ -112,13 +111,12 @@ function SignUpFlow({ dest, fromState }: { dest: string; fromState: unknown }) {
     <Shell title="Check your email" sub={`We sent a 6-digit code to ${email.trim()}.`}>
       <form className="grid gap-4" noValidate onSubmit={(e) => void submitCode(e)}>
         {devCode && <Alert tone="warn" title="Development mode">No email is delivered locally. Your code is <strong className="tracking-widest">{devCode}</strong>.</Alert>}
-        <Input label="6-digit code" value={code} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCode(v); setCodeErr(null); if (v.length === 6) pwRef.current?.querySelector('input')?.focus(); }}
+        <Input label="6-digit code" value={code} onChange={(e) => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCode(v); setCodeErr(null); }}
           inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} autoFocus error={codeErr} hint="Type or paste the code. It expires after 10 minutes."
           className="text-center font-display text-3xl tracking-[0.5em]" />
-        <div ref={pwRef}><PasswordInput label="Choose a password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 8 characters." /></div>
         {note && <Alert tone="success">{note}</Alert>}
         {err && <Alert tone="error">{err}</Alert>}
-        <Button type="submit" loading={busy} disabled={code.length !== 6 || password.length < 8}>Create account</Button>
+        <Button type="submit" loading={busy} disabled={code.length !== 6}>Verify and create account</Button>
       </form>
       <div className="grid gap-1 text-sm">
         <button type="button" className="inline-flex min-h-11 items-center justify-self-start underline disabled:no-underline disabled:opacity-60" disabled={cooldown > 0 || busy} onClick={() => void sendCode(true)}>{cooldown > 0 ? `Send a new code in ${cooldown}s` : 'Send a new code'}</button>
@@ -135,7 +133,7 @@ export default function Auth() {
   const nav = useNavigate();
   const auth = useAuth();
   const loc = useLocation();
-  const dest = (loc.state as { from?: string } | null)?.from ?? params.get('next') ?? '/dashboard';
+  const dest = (loc.state as { from?: string } | null)?.from ?? params.get('next') ?? (auth.user && auth.user.role !== 'member' ? '/admin' : '/dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -158,7 +156,7 @@ export default function Auth() {
     try { await fn(); } catch (x) { setErr(errMsg(x)); } finally { setBusy(false); }
   };
 
-  if (pathname === '/sign-up') return <SignUpFlow dest={dest} fromState={loc.state} />;
+  if (pathname === '/sign-up') return <SignUpFlow fromState={loc.state} />;
   if (pathname === '/forgot-password') {
     return (
       <Shell title="Reset your password" sub="We’ll email you a link if an account exists.">
@@ -187,7 +185,7 @@ export default function Auth() {
   return (
     <Shell title="Sign in" sub="Welcome back.">
       {auth.mode === 'dev' && <Alert tone="warn" title="Local development accounts">Supabase isn’t configured, so accounts live in the local dev database. Try host@dev.local / devpassword1, or create one — the sign-up code is shown on screen.</Alert>}
-      <form className="grid gap-4" noValidate onSubmit={run(async () => { await auth.signIn(email.trim(), password); nav(dest, { replace: true }); })}>
+      <form className="grid gap-4" noValidate onSubmit={run(async () => { await auth.signIn(email.trim(), password); })}>
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
         <PasswordInput label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
         {err && <Alert tone="error">{err}</Alert>}
