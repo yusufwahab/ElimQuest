@@ -10,6 +10,7 @@ import { loadEnv, type Env } from './env';
 import { Mailer } from './email';
 import { GameService } from './game/service';
 import { PracticeService } from './game/practice';
+import { SignupService } from './signup';
 import { limiter, makeCounter } from './ratelimit';
 import { ensureBaseData, seedFixtures } from './repo/content';
 import { HttpError } from './repo/util';
@@ -46,7 +47,8 @@ export async function createApp(envOverrides: Record<string, string | undefined>
   const games = new GameService(db, env);
   const practice = new PracticeService(db, env);
   const auth = new Auth(env, db);
-  const ctx: Ctx = { env, db, auth, games, practice, mailer, limit: limiter(counter, env) };
+  const signup = new SignupService(db, env, mailer, auth);
+  const ctx: Ctx = { env, db, auth, games, practice, mailer, signup, limit: limiter(counter, env) };
 
   const app = express();
   app.set('trust proxy', 1);
@@ -90,7 +92,7 @@ export async function createApp(envOverrides: Record<string, string | undefined>
 
   const recovered = await games.recover();
   if (recovered) console.warn(`[game] ${recovered} in-flight game(s) placed in recovery pause`);
-  const sweepTimer = setInterval(() => games.sweep().catch((e) => console.error('[sweep]', e)), 10 * 60_000);
+  const sweepTimer = setInterval(() => { games.sweep().catch((e) => console.error('[sweep]', e)); signup.cleanup().catch((e) => console.error('[sweep]', e)); }, 10 * 60_000);
   sweepTimer.unref();
 
   return {

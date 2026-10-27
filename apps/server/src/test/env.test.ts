@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../env';
 
-const prod = { NODE_ENV: 'production', DB_DRIVER: 'pg', DATABASE_URL: 'postgres://u:p@h:5432/db', AUTH_MODE: 'supabase', SUPABASE_URL: 'https://x.supabase.co', ALLOWED_ORIGINS: 'https://quiz.example.com', PUBLIC_WEB_URL: 'https://quiz.example.com' };
+const prod = { NODE_ENV: 'production', DB_DRIVER: 'pg', DATABASE_URL: 'postgres://u:p@h:5432/db', AUTH_MODE: 'supabase', SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-key', OTP_SECRET: 'a'.repeat(40), ALLOWED_ORIGINS: 'https://quiz.example.com', PUBLIC_WEB_URL: 'https://quiz.example.com' };
 
 describe('environment validation', () => {
   it('accepts a coherent production configuration', () => {
@@ -17,6 +17,9 @@ describe('environment validation', () => {
     ['rate limiting disabled in production', { RATE_LIMIT_DISABLED: 'true' }, /RATE_LIMIT_DISABLED/],
     ['wildcard origins in production', { ALLOWED_ORIGINS: '*' }, /ALLOWED_ORIGINS/],
     ['missing database url', { DATABASE_URL: '' }, /DATABASE_URL/],
+    ['no service-role key (cannot create verified accounts)', { SUPABASE_SERVICE_ROLE_KEY: '' }, /SERVICE_ROLE_KEY/],
+    ['no OTP secret', { OTP_SECRET: '' }, /OTP_SECRET/],
+    ['a short OTP secret', { OTP_SECRET: 'short' }, /OTP_SECRET/],
     ['brevo without a key', { EMAIL_MODE: 'brevo' }, /BREVO_API_KEY/],
   ])('refuses %s', (_n, over, msg) => {
     expect(() => loadEnv({ ...prod, ...over } as Record<string, string>)).toThrow(msg);

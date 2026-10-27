@@ -6,16 +6,22 @@ import { store } from './storage';
 export interface User { id: string; email: string; displayName: string; role: 'member' | 'content_reviewer' | 'super_admin' }
 type Mode = 'dev' | 'supabase';
 
+export class AuthError extends Error {
+  constructor(message: string, public code: 'unverified' | 'other' = 'other') { super(message); }
+}
+
 interface AuthCtx {
   mode: Mode;
   user: User | null;
   loading: boolean;
   signIn(email: string, password: string): Promise<void>;
-  signUp(email: string, password: string, displayName: string): Promise<{ needsVerification: boolean }>;
+  /** Step 1 of sign-up: we email a 6-digit code (via Brevo). Calling it again sends a fresh code. */
+  startSignup(email: string, displayName: string): Promise<{ cooldown: number }>;
+  /** Step 2: the code proves the email; only then is the account created, and the person is signed in. */
+  completeSignup(email: string, code: string, password: string, displayName: string): Promise<void>;
   signOut(): Promise<void>;
   forgotPassword(email: string): Promise<void>;
   updatePassword(password: string): Promise<void>;
-  resendVerification(email: string): Promise<void>;
   refresh(): Promise<void>;
 }
 const Ctx = createContext<AuthCtx | null>(null);
@@ -64,28 +70,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted.current = false; unsub?.(); };
   }, [refresh]);
 
+  const signIn = useCallback(async (email: string, password: string) => {
+    if (authMode === 'dev') {
+      const r = await api<{ token: string }>('POST', '/api/dev-auth/login', { email, password }, { auth: false });
+      store.set(DEV_KEY, r.token);
+    } else {
+      const { error } = await (await supabase()).auth.signInWithPassword({ email, password });
+      if (error) throw error.message.includes('Email not confirmed') ? new AuthError('This email isn’t confirmed yet. Please sign up again to get a new code.', 'unverified') : new AuthError('Incorrect email or password');
+    }
+    await refresh();
+  }, [refresh]);
+
   const value = useMemo<AuthCtx>(() => ({
-    mode: authMode, user, loading, refresh,
-    async signIn(email, password) {
-      if (authMode === 'dev') {
-        const r = await api<{ token: string }>('POST', '/api/dev-auth/login', { email, password }, { auth: false });
-        store.set(DEV_KEY, r.token);
-      } else {
-        const { error } = await (await supabase()).auth.signInWithPassword({ email, password });
-        if (error) throw new Error(error.message.includes('Email not confirmed') ? 'Please verify your email first. Check your inbox for the link.' : 'Incorrect email or password');
-      }
-      await refresh();
+    mode: authMode, user, loading, refresh, signIn,
+    async startSignup(email, displayName) {
+      return api<{ cooldown: number }>('POST', '/api/auth/signup/start', { email, displayName }, { auth: false });
     },
-    async signUp(email, password, displayName) {
-      if (authMode === 'dev') {
-        const r = await api<{ token: string }>('POST', '/api/dev-auth/register', { email, password, displayName }, { auth: false });
-        store.set(DEV_KEY, r.token);
-        await refresh();
-        return { needsVerification: false };
-      }
-      const { data, error } = await (await supabase()).auth.signUp({ email, password, options: { data: { display_name: displayName }, emailRedirectTo: `${location.origin}${import.meta.env.BASE_URL}auth/callback` } });
-      if (error) throw new Error(error.message);
-      return { needsVerification: !data.session };
+    async completeSignup(email, code, password, displayName) {
+      await api('POST', '/api/auth/signup/verify', { email, code, password, displayName }, { auth: false });
+      await signIn(email, password);
     },
     async signOut() {
       if (authMode === 'dev') store.del(DEV_KEY); else await (await supabase()).auth.signOut();
@@ -101,11 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await (await supabase()).auth.updateUser({ password });
       if (error) throw new Error(error.message);
     },
-    async resendVerification(email) {
-      if (authMode === 'dev') return;
-      await (await supabase()).auth.resend({ type: 'signup', email });
-    },
-  }), [user, loading, refresh]);
+  }), [user, loading, refresh, signIn]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

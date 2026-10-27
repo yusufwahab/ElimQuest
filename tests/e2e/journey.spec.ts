@@ -4,6 +4,18 @@ import { mkdirSync } from 'node:fs';
 const SHOTS = process.env.SHOTS_DIR;
 const shot = async (p: Page, name: string) => { if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); await p.screenshot({ path: `${SHOTS}/${name}.png` }); } };
 
+/** Two-step sign-up: email a code (local dev shows it on screen), then enter it with a chosen password. */
+export async function signUpWithCode(page: Page, name: string, email: string, password = 'password123') {
+  await page.getByLabel('Display name').fill(name);
+  await page.getByLabel('Email').fill(email);
+  await page.getByRole('button', { name: /send me a code/i }).click();
+  await expect(page.getByRole('heading', { name: /check your email/i })).toBeVisible();
+  const code = (await page.locator('strong.tracking-widest').innerText()).trim();
+  await page.getByLabel('6-digit code').fill(code);
+  await page.getByLabel('Choose a password').fill(password);
+  await page.getByRole('button', { name: 'Create account' }).click();
+}
+
 async function guest(browser: Browser, code: string, name: string, viewport = { width: 1280, height: 800 }, html = false) {
   const ctx = await browser.newContext({ viewport });
   if (html) await ctx.addInitScript(() => localStorage.setItem('eq:nogame', '1'));
@@ -56,10 +68,7 @@ test('host sets up on one screen (signing in only at Create); guests join; real 
   await host.getByRole('button', { name: /sign in to create/i }).click();
   await expect(host).toHaveURL(/sign-in/);
   await host.getByRole('link', { name: /create an account/i }).first().click();
-  await host.getByLabel('Display name').fill('E2E Host');
-  await host.getByLabel('Email').fill(`e2e${Date.now()}@example.com`);
-  await host.getByLabel('Password', { exact: true }).fill('password123');
-  await host.getByRole('button', { name: 'Create account' }).click();
+  await signUpWithCode(host, 'E2E Host', `e2e${Date.now()}@example.com`);
   await expect(host).toHaveURL(/\/games\/new/);
   await expect(host.getByLabel('Game title')).toHaveValue('Family night');
   await host.getByRole('button', { name: /create & open room/i }).click();

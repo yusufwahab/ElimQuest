@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from './app';
 
 // Load apps/server/.env if present (real environment variables take precedence).
+// ELIMQUEST_SKIP_ENV_FILE=1 ignores the file entirely — automated tests use it so they can never pick up real credentials.
 const envFile = fileURLToPath(new URL('../.env', import.meta.url));
-if (existsSync(envFile)) process.loadEnvFile(envFile);
+if (process.env.ELIMQUEST_SKIP_ENV_FILE !== '1' && existsSync(envFile)) process.loadEnvFile(envFile);
 
 const app = await createApp();
 const port = await app.listen();

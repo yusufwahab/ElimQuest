@@ -86,7 +86,7 @@ function AdventurerSheet({ open, onClose }: { open: boolean; onClose: () => void
 export function AdventurerChip() {
   const a = useAdventurer();
   return (
-    <button type="button" onClick={a.openEditor} className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white/5 py-1 pl-1.5 pr-3 text-sm hover:bg-white/10" aria-label={`Your adventurer${a.nickname ? `: ${a.nickname}` : ''}. Change look`}>
+    <button type="button" onClick={a.openEditor} className="flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white/5 py-1 pl-1.5 pr-3 text-sm hover:bg-white/10" aria-label={`${a.nickname || 'Your look'} — change your look`}>
       <span className="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-ink-raised"><AvatarFigure config={a.avatar} size={26} /></span>
       <span className="hidden max-w-24 truncate sm:inline">{a.nickname || 'Your look'}</span>
     </button>

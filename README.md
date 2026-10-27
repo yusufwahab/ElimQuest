@@ -43,4 +43,4 @@ npm run typecheck && npm run lint
 
 ## Deploy
 
-`docs/DEPLOY.md` (Namecheap static frontend, Render API, Supabase, Brevo, migrations, rollback, backups). Nothing is deployed by this repository; deployment needs your explicit action and credentials.
+`docs/DEPLOY.md` (Vercel frontend + Namecheap domain, or Namecheap static hosting; Render API, Supabase, Brevo, migrations, rollback, backups). Nothing is deployed by this repository; deployment needs your explicit action and credentials.

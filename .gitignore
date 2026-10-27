@@ -7,7 +7,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
-.pglite-data
+.pglite-*
 .DS_Store
 .idea
 .vscode/*

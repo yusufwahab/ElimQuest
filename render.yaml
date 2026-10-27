@@ -6,12 +6,15 @@ services:
     runtime: node
     plan: free
     region: frankfurt            # choose the region closest to your Supabase project and players
-    buildCommand: npm ci && npm run build -w @elimquest/server
+    # `npm install` (not `npm ci`): the lockfile was created on Windows and lacks some Linux-only optional packages, which makes `npm ci` fail on Render.
+    # --include=dev: the build tool (esbuild) is a dev dependency and Render may set NODE_ENV=production during install.
+    buildCommand: npm install --include=dev --no-audit --no-fund && npm run build -w @elimquest/server
     startCommand: node apps/server/dist/index.mjs
     healthCheckPath: /readyz
     autoDeploy: false
     envVars:
       - { key: NODE_ENV, value: production }
+      - { key: NODE_VERSION, value: "22" }
       - { key: DB_DRIVER, value: pg }
       - { key: AUTH_MODE, value: supabase }
       - { key: EMAIL_MODE, value: brevo }
@@ -20,6 +23,8 @@ services:
       - { key: DB_POOL_MAX, value: "5" }
       - { key: DATABASE_URL, sync: false }
       - { key: SUPABASE_URL, sync: false }
+      - { key: SUPABASE_SERVICE_ROLE_KEY, sync: false }   # server-only secret: creates the account after the emailed code is verified
+      - { key: OTP_SECRET, sync: false }                   # 32+ random characters
       - { key: ALLOWED_ORIGINS, sync: false }          # https://your-domain
       - { key: PUBLIC_WEB_URL, sync: false }
       - { key: BREVO_API_KEY, sync: false }

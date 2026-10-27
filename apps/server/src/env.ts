@@ -21,6 +21,10 @@ export const envSchema = z.object({
   AUTH_MODE: z.enum(['dev', 'supabase']).default('dev'),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_JWT_SECRET: z.string().optional(),
+  /** Server-only. Lets the API create the Supabase user once the emailed code is verified. NEVER a VITE_ variable. */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  /** Keys the hash of one-time codes. Random, 32+ characters, server-only. */
+  OTP_SECRET: z.string().min(32).default('dev-only-otp-secret-0123456789abcdef'),
   DEV_AUTH_SECRET: z.string().min(16).default('dev-only-secret-change-me-0123456789'),
 
   // Redis (optional cache / rate limit counters)
@@ -64,6 +68,10 @@ export function loadEnv(rawIn: Record<string, string | undefined> = process.env)
     if (env.TIMING_SCALE !== 1) problems.push('TIMING_SCALE must be 1 in production');
     if (env.RATE_LIMIT_DISABLED) problems.push('RATE_LIMIT_DISABLED must be false in production');
     if (env.ALLOWED_ORIGINS.some((o) => o === '*')) problems.push('ALLOWED_ORIGINS must be an explicit allowlist');
+  }
+  if (env.AUTH_MODE === 'supabase' && env.NODE_ENV === 'production') {
+    if (!env.SUPABASE_SERVICE_ROLE_KEY) problems.push('SUPABASE_SERVICE_ROLE_KEY is required in production (the API creates accounts after the emailed code is verified)');
+    if (!raw.OTP_SECRET) problems.push('OTP_SECRET (32+ random characters) is required in production');
   }
   if (env.DB_DRIVER === 'pg' && !env.DATABASE_URL) problems.push('DATABASE_URL is required when DB_DRIVER=pg');
   if (env.AUTH_MODE === 'supabase' && !env.SUPABASE_URL) problems.push('SUPABASE_URL is required when AUTH_MODE=supabase');

@@ -139,3 +139,12 @@ export const kickSchema = z.object({ participantId: z.string().uuid() });
 export const REACTION_KINDS = ['star', 'lantern', 'heart', 'bolt', 'flame'] as const;
 export type ReactionKind = (typeof REACTION_KINDS)[number];
 export const reactSchema = z.object({ kind: z.enum(REACTION_KINDS) });
+
+/** Email one-time-code sign-up (our own OTP, sent through Brevo). The account is only created after the code is proven. */
+export const signupStartSchema = z.object({ email: z.string().trim().toLowerCase().email().max(200), displayName: text(40) });
+export const signupVerifySchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+  code: z.string().regex(/^\d{6}$/, 'The code is 6 digits'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(100),
+  displayName: text(40),
+});

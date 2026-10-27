@@ -14,7 +14,8 @@ export default defineConfig({
   webServer: [
     {
       command: 'npx tsx apps/server/src/index.ts',
-      env: { PORT: api, ALLOW_FIXTURE_QUESTIONS: 'true', MAX_ACTIVE_ROOMS: '100', MAX_OPEN_ROOMS_PER_HOST: '100', TIMING_SCALE: '0.3', ANSWER_GRACE_MS: '300', RATE_LIMIT_DISABLED: 'true' },
+      // Isolated from apps/server/.env (which may hold real credentials): local in-memory DB, dev auth, emails only logged.
+      env: { ELIMQUEST_SKIP_ENV_FILE: '1', NODE_ENV: 'development', DB_DRIVER: 'pglite', AUTH_MODE: 'dev', EMAIL_MODE: 'log', PORT: api, ALLOW_FIXTURE_QUESTIONS: 'true', MAX_ACTIVE_ROOMS: '100', MAX_OPEN_ROOMS_PER_HOST: '100', TIMING_SCALE: '0.3', ANSWER_GRACE_MS: '300', RATE_LIMIT_DISABLED: 'true' },
       url: `http://localhost:${api}/healthz`, reuseExistingServer: !process.env.CI, timeout: 60_000,
     },
     { command: `npx vite preview --port ${web} --strictPort`, cwd: 'apps/web', env: { VITE_DEV_API_TARGET: `http://localhost:${api}` }, url: `http://localhost:${web}`, reuseExistingServer: !process.env.CI },

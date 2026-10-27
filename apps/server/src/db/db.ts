@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Env } from '../env';
@@ -17,14 +17,40 @@ export interface Db extends Queryable {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const DB_DIR = join(here, '..', '..', '..', '..', 'database');
+/**
+ * Locate the repo's `database/` folder. Works from source (apps/server/src/db) and from the bundled build
+ * (apps/server/dist) by walking up until `database/migrations` exists. `DATABASE_DIR` overrides it.
+ */
+function findDatabaseDir(): string {
+  if (process.env.DATABASE_DIR) return process.env.DATABASE_DIR;
+  let dir = here;
+  for (let i = 0; i < 8; i++) {
+    if (existsSync(join(dir, 'database', 'migrations'))) return join(dir, 'database');
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  throw new Error('Could not find the database/migrations folder. Deploy the whole repository, or set DATABASE_DIR.');
+}
+export const DB_DIR = findDatabaseDir();
 
 export async function openDb(env: Env): Promise<Db> {
   if (env.DB_DRIVER === 'pglite') {
     if (env.NODE_ENV === 'production') throw new Error('PGlite is refused in production');
     const { PGlite } = await import('@electric-sql/pglite');
-    const pg = env.PGLITE_DIR ? new PGlite(env.PGLITE_DIR) : new PGlite();
-    await pg.waitReady;
+    const open = async (dir?: string) => { const p = dir ? new PGlite(dir) : new PGlite(); await p.waitReady; await p.query('select 1'); return p; };
+    let pg: Awaited<ReturnType<typeof open>>;
+    try {
+      pg = await open(env.PGLITE_DIR);
+    } catch (e) {
+      // A persisted dev database can be left corrupt by a killed process or two servers sharing the folder.
+      // Never block development: move it aside (kept for inspection) and start fresh.
+      if (!env.PGLITE_DIR || !existsSync(env.PGLITE_DIR)) throw e;
+      const aside = `${env.PGLITE_DIR.replace(/[\/]+$/, '')}.corrupt-${Date.now()}`;
+      renameSync(env.PGLITE_DIR, aside);
+      console.warn(`[db] The local dev database could not be opened (${(e as Error).message.slice(0, 60)}). Moved it to ${aside} and created a fresh one.`);
+      pg = await open(env.PGLITE_DIR);
+    }
     return {
       kind: 'pglite',
       query: async (sql, params) => {

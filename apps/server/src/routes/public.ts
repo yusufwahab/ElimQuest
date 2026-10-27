@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { joinBodySchema, loginDevSchema, registerDevSchema, reportSchema } from '@elimquest/contracts';
+import { joinBodySchema, loginDevSchema, registerDevSchema, reportSchema, signupStartSchema, signupVerifySchema } from '@elimquest/contracts';
 import { platformLimits } from '@elimquest/config';
 import { normaliseRoomCode, isValidRoomCode } from '@elimquest/game-core';
 import { guestToken, type Ctx } from '../ctx';
@@ -64,6 +64,24 @@ export function publicRoutes(ctx: Ctx) {
     await db.query('insert into content_reports(version_id, reason, note) values ($1,$2,$3)', [body.questionVersionId, body.reason, body.note]);
     res.status(201).json({ ok: true });
   });
+
+  // ---- sign-up with an emailed one-time code (works in dev and production) ----------------------
+  r.post('/auth/signup/start', ctx.limit('signup-start', 8, 600_000), async (req, res) => {
+    const b = signupStartSchema.parse(req.body);
+    res.json(await ctx.signup.start(b.email, b.displayName));
+  });
+  r.post('/auth/signup/verify', ctx.limit('signup-verify', 20, 600_000), async (req, res) => {
+    const b = signupVerifySchema.parse(req.body);
+    res.status(201).json(await ctx.signup.verify(b));
+  });
+  // Development convenience only: with EMAIL_MODE=log nothing is delivered, so the page can show the code.
+  if (env.NODE_ENV !== 'production' && env.EMAIL_MODE === 'log') {
+    r.get('/dev/last-email', (req, res) => {
+      const to = String(req.query.to ?? '').toLowerCase();
+      const mail = [...ctx.mailer.outbox].reverse().find((m) => m.to.toLowerCase() === to);
+      res.json(mail ? { subject: mail.subject, text: mail.text, code: /\b(\d{6})\b/.exec(mail.text)?.[1] ?? null } : { subject: null, text: null, code: null });
+    });
+  }
 
   // ---- dev auth (never mounted in production) -------------------------------------------------
   if (env.AUTH_MODE === 'dev' && env.NODE_ENV !== 'production') {
