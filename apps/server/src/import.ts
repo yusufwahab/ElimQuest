@@ -9,7 +9,7 @@ export const IMPORT_LIMITS = { maxBytes: 2 * 1024 * 1024, adminRows: 1000, packR
 export const TEMPLATE_HEADERS = ['question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct', 'explanation', 'category', 'level', 'reference'] as const;
 
 export function templateCsv(): string {
-  const ex = ['How many surahs are in the Qur’an?', '110', '114', '120', '124', 'B', 'The Qur’an has 114 surahs.', 'quran', '1', ''];
+  const ex = ['How many surahs are in the Qur’an?', '110', '114', '120', '124', 'B', 'The Qur’an has 114 surahs.', 'quran', 'Beginner', ''];
   return `${TEMPLATE_HEADERS.join(',')}\n${ex.map((x) => `"${x}"`).join(',')}\n`;
 }
 

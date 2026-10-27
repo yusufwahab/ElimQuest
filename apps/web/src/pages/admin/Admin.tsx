@@ -81,23 +81,20 @@ function ImportPage() {
 
 function ReviewQueue() {
   const q = useQuery({ queryKey: ['admin-q', 'review'], queryFn: () => api<{ questions: any[] }>('GET', '/api/admin/questions?status=in_review') });
-  return (<div className="grid gap-4"><h1 className="text-2xl">Review queue</h1>{q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : q.data.questions.length === 0 ? <EmptyState title="Nothing waiting for review" /> : <ul className="grid gap-2">{q.data.questions.map((x) => <li key={x.id} className="card flex flex-wrap items-center justify-between gap-3 !p-3"><span className="min-w-0 flex-1 break-words">{x.text}<span className="block text-xs text-ivory/60">{x.categoryName} · level {x.level} · by {x.authorName ?? 'unknown'}</span></span><LinkButton variant="ghost" to={`/admin/questions/${x.id}`} className="!min-h-10 text-sm">Review</LinkButton></li>)}</ul>}</div>);
+  return (<div className="grid gap-4"><h1 className="text-2xl">Review queue</h1>{q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : q.data.questions.length === 0 ? <EmptyState title="Nothing waiting for review" /> : <ul className="grid gap-2">{q.data.questions.map((x) => <li key={x.id} className="card flex flex-wrap items-center justify-between gap-3 !p-3"><span className="min-w-0 flex-1 break-words">{x.text}<span className="block text-xs text-ivory/60">{x.categoryName} · {bandOfLevel(x.level).name} · by {x.authorName ?? 'unknown'}</span></span><LinkButton variant="ghost" to={`/admin/questions/${x.id}`} className="!min-h-10 text-sm">Review</LinkButton></li>)}</ul>}</div>);
 }
 
 function Categories() {
   const qc = useQueryClient(); const q = useCats();
   const [n, setN] = useState({ name: '', slug: '', description: '' });
-  const levels = useQuery({ queryKey: ['levels'], queryFn: () => api<{ levels: { level: number; title: string; rubric: string }[] }>('GET', '/api/levels', undefined, { auth: false }) });
   const create = useMutation({ mutationFn: () => api('POST', '/api/admin/categories', { ...n, published: false, sortOrder: 100 }), onSuccess: () => { setN({ name: '', slug: '', description: '' }); void qc.invalidateQueries({ queryKey: ['admin-cats'] }); } });
   const toggle = useMutation({ mutationFn: (c: any) => api('PUT', `/api/admin/categories/${c.id}`, { name: c.name, slug: c.slug, description: c.description, published: !c.published, sortOrder: c.sortOrder }), onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin-cats'] }) });
-  const saveLevel = useMutation({ mutationFn: (l: any) => api('PUT', `/api/admin/levels/${l.level}`, { title: l.title, rubric: l.rubric }), onSuccess: () => void qc.invalidateQueries({ queryKey: ['levels'] }) });
-  const [edit, setEdit] = useState<Record<number, { title: string; rubric: string }>>({});
   return (<div className="grid gap-6"><section className="grid gap-3"><h1 className="text-2xl">Topics</h1>
     <Alert tone="info">Only <em>published</em> topics are visible to players. New topics start hidden — this is how non-Islamic subjects can be prepared without exposing them.</Alert>
     {q.data && <ul className="grid gap-2">{q.data.categories.map((c) => <li key={c.id} className="card flex flex-wrap items-center justify-between gap-3 !p-3"><span><strong>{c.name}</strong> <span className="text-xs text-ivory/60">/{c.slug}</span></span><Button variant="ghost" className="!min-h-9 text-sm" onClick={() => toggle.mutate(c)}>{c.published ? 'Published — unpublish' : 'Hidden — publish'}</Button></li>)}</ul>}
     <form className="card grid gap-3 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}><Input label="Name" value={n.name} onChange={(e) => setN({ ...n, name: e.target.value })} required /><Input label="Slug" value={n.slug} onChange={(e) => setN({ ...n, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} hint="lowercase-with-dashes" required /><Input label="Description" value={n.description} onChange={(e) => setN({ ...n, description: e.target.value })} /><div className="sm:col-span-3"><Button type="submit" loading={create.isPending}>Add topic</Button>{create.isError && <span className="ml-3 text-sm text-danger">{errMsg(create.error)}</span>}</div></form></section>
-    <section className="grid gap-3"><h2 className="text-2xl">Levels 1–10 rubric</h2><p className="text-sm text-ivory/75">Levels reflect depth of knowledge, reasoning steps and prerequisite knowledge — not mere obscurity.</p>
-      <ul className="grid gap-2">{levels.data?.levels.map((l) => { const e = edit[l.level] ?? l; return <li key={l.level} className="card grid gap-2 !p-3 sm:grid-cols-[3rem_12rem_1fr_auto] sm:items-end"><span className="font-display text-2xl">{l.level}</span><Input label="Title" value={e.title} onChange={(ev) => setEdit({ ...edit, [l.level]: { ...e, title: ev.target.value } })} /><Input label="Rubric" value={e.rubric} onChange={(ev) => setEdit({ ...edit, [l.level]: { ...e, rubric: ev.target.value } })} /><Button variant="ghost" onClick={() => saveLevel.mutate({ level: l.level, ...e })}>Save</Button></li>; })}</ul></section></div>);
+    <section className="grid gap-3"><h2 className="text-2xl">Difficulty bands</h2><p className="text-sm text-ivory/75">Players see four bands, never numbers. Judge a question by the depth of knowledge and reasoning it needs, not by how obscure it is. When two bands seem possible, choose the easier one; real answer data will show where it really belongs.</p>
+      <ul className="grid gap-2 sm:grid-cols-2">{BANDS.map((b) => <li key={b.id} className="card !p-3"><p className="font-semibold">{b.name}</p><p className="text-sm text-ivory/80">{b.blurb}</p></li>)}</ul></section></div>);
 }
 
 function Reports() {
@@ -128,7 +125,7 @@ export default function Admin() {
   if (loading) return <PageLoading />;
   if (!user || !['content_reviewer', 'super_admin'].includes(user.role)) return <div className="container-page max-w-xl py-12"><EmptyState title="You don’t have access to this area" action={<LinkButton to="/">Home</LinkButton>}>Admin tools are limited to content reviewers and super admins.</EmptyState></div>;
   const [a, b] = rest.split('/').filter(Boolean);
-  const nav = [['', 'Overview'], ['questions', 'Questions'], ['review', 'Review queue'], ['import', 'Import'], ['topics', 'Topics & levels'], ['reports', 'Reports'], ['audit', 'Audit log'], ...(user.role === 'super_admin' ? [['users', 'Roles & platform']] : [])];
+  const nav = [['', 'Overview'], ['questions', 'Questions'], ['review', 'Review queue'], ['import', 'Import'], ['topics', 'Topics & difficulty'], ['reports', 'Reports'], ['audit', 'Audit log'], ...(user.role === 'super_admin' ? [['users', 'Roles & platform']] : [])];
   let page = <Dashboard />;
   if (a === 'questions') page = b ? <QuestionEditor id={b} /> : <Questions />;
   else if (a === 'review') page = <ReviewQueue />; else if (a === 'import') page = <ImportPage />; else if (a === 'topics') page = <Categories />;

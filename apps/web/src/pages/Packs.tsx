@@ -43,7 +43,7 @@ function ImportWizard({ packId, onDone }: { packId: string; onDone: () => void }
   const s = prev.data?.summary;
   return (
     <section className="card grid gap-3" aria-labelledby="imp-h"><h2 id="imp-h" className="text-xl">Import from CSV or Excel</h2>
-      <ol className="grid list-decimal gap-1 pl-5 text-sm text-ivory/85"><li><button className="underline" onClick={() => void download('/api/packs/template.csv', 'elimquest-template.csv', 'text/csv')}>Download the template</button></li><li>Fill it in (correct answer is A, B, C or D; level 1–10; leave category as “custom” or use a topic name).</li><li>Upload it (.csv or .xlsx, up to 2 MB and 200 rows) and review the preview before anything is saved.</li></ol>
+      <ol className="grid list-decimal gap-1 pl-5 text-sm text-ivory/85"><li><button className="underline" onClick={() => void download('/api/packs/template.csv', 'elimquest-template.csv', 'text/csv')}>Download the template</button></li><li>Fill it in (correct answer is A, B, C or D; level is Beginner, Intermediate, Advanced or Scholar; leave category as “custom” or use a topic name).</li><li>Upload it (.csv or .xlsx, up to 2 MB and 200 rows) and review the preview before anything is saved.</li></ol>
       <input aria-label="Choose a CSV or XLSX file" type="file" accept=".csv,.xlsx" className="field" onChange={(e) => { setFile(e.target.files?.[0] ?? null); prev.reset(); }} />
       <div><Button variant="ghost" disabled={!file} loading={prev.isPending} onClick={() => prev.mutate()}>Check file</Button></div>
       {prev.isError && <Alert tone="error">{errMsg(prev.error)}</Alert>}
