@@ -137,13 +137,14 @@ test('quick climb: one tap from the landing page, guided by the first-run tutori
   await expect(page.getByRole('list', { name: /house rules/i })).toContainText('Gentle');
 });
 
-test('solo setup uses tile selectors (no dropdowns) and levels can be tapped as a range', async ({ page }) => {
+test('solo setup uses tile selectors (no dropdowns); difficulty is Mixed or one named band', async ({ page }) => {
   await page.goto('/practice');
   expect(await page.locator('select').count()).toBe(0);
-  await page.getByRole('button', { name: /^Level 3,/ }).click();
-  await page.getByRole('button', { name: /^Level 6,/ }).click();
-  await expect(page.getByText(/Levels 3–6/)).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Level 4,/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('radio', { name: /^Mixed/ })).toBeChecked();
+  await page.getByRole('radio', { name: /^Scholar/ }).check({ force: true });
+  await expect(page.getByRole('radio', { name: /^Scholar/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /^Mixed/ })).not.toBeChecked();
+  await expect(page.getByRole('button', { name: /^Level \d/ })).toHaveCount(0);       // no 1–10 ladder
 });
 
 test('time per question: presets plus a custom value clamped to 5–120 seconds', async ({ page }) => {

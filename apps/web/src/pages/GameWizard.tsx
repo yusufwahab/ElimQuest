@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { checkNickname, defaultSummit, rulesSummary } from '@elimquest/game-core';
+import { BANDS, checkNickname, defaultSummit, describeLevels, difficultyOf, rulesSummary } from '@elimquest/game-core';
 import { api, ApiError, errMsg } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useAdventurer } from '../lib/adventurer';
 import { deviceId, roomCred, store } from '../lib/storage';
 import { Alert, Button, ErrorState, Input, LinkButton, PageLoading } from '../components/ui';
-import { LevelRange, RULE_TEXT, RuleToggle, TileGrid, TileMulti, TimePicker } from '../components/Tiles';
+import { DifficultyPicker, RULE_TEXT, RuleToggle, TileGrid, TileMulti, TimePicker } from '../components/Tiles';
 import { InfoTip, StepBar, StepNav } from '../components/Stepper';
 
-interface Topic { id: string; slug: string; name: string; questionCount: number }
+interface Topic { id: string; slug: string; name: string; questionCount: number; levels: { level: number; count: number }[] }
 interface Form {
   title: string; hostMode: 'competing' | 'audience'; source: 'system' | 'pack'; packId: string; categoryIds: string[]; minLevel: number; maxLevel: number;
   questionLimit: number; summitHeight: number; timeLimitS: number; maxPlayers: number; when: 'now' | 'later'; local: string; timezone: string;
@@ -21,9 +21,9 @@ const blank = (): Form => ({ title: '', hostMode: 'competing', source: 'system',
 
 /** Templates fill the form with sensible choices; everything stays editable. */
 const TEMPLATES: Record<string, { label: string; blurb: string; patch: Partial<Form> }> = {
-  family: { label: 'Family night', blurb: 'Play together, relaxed pace, nobody drops down.', patch: { title: 'Family night', hostMode: 'competing', minLevel: 1, maxLevel: 5, questionLimit: 10, summitHeight: 5, timeLimitS: 45, maxPlayers: 20, gentle: true, superQuestion: true } },
-  class: { label: 'Class quiz', blurb: 'You run it for the group and stay in control.', patch: { title: 'Class quiz', hostMode: 'audience', minLevel: 1, maxLevel: 6, questionLimit: 20, summitHeight: 10, timeLimitS: 30, maxPlayers: 60, gentle: false, superQuestion: false } },
-  event: { label: 'Community event', blurb: 'A bigger gathering with a super question.', patch: { title: 'Community event', hostMode: 'audience', minLevel: 1, maxLevel: 8, questionLimit: 30, summitHeight: 15, timeLimitS: 30, maxPlayers: 150, superQuestion: true, gentle: false } },
+  family: { label: 'Family night', blurb: 'Play together, relaxed pace, nobody drops down.', patch: { title: 'Family night', hostMode: 'competing', minLevel: 1, maxLevel: 10, questionLimit: 10, summitHeight: 5, timeLimitS: 45, maxPlayers: 20, gentle: true, superQuestion: true } },
+  class: { label: 'Class quiz', blurb: 'You run it for the group and stay in control.', patch: { title: 'Class quiz', hostMode: 'audience', minLevel: 1, maxLevel: 10, questionLimit: 20, summitHeight: 10, timeLimitS: 30, maxPlayers: 60, gentle: false, superQuestion: false } },
+  event: { label: 'Community event', blurb: 'A bigger gathering with a super question.', patch: { title: 'Community event', hostMode: 'audience', minLevel: 1, maxLevel: 10, questionLimit: 30, summitHeight: 15, timeLimitS: 30, maxPlayers: 150, superQuestion: true, gentle: false } },
 };
 const DRAFT_KEY = 'eq:hostform';
 const STEP_KEY = 'eq:hoststep';
@@ -138,6 +138,9 @@ export default function GameWizard() {
   players.sort((a, b) => a - b);
   const fitting = inv.data ? ([30, 20, 10].find((n) => n <= inv.data!.usable) ?? null) : null;
 
+  const chosen = topics.data.topics.filter((t) => form.categoryIds.includes(t.id));
+  const bandCount = (lo: number, hi: number) => (chosen.length ? chosen.reduce((n, t) => n + t.levels.filter((l) => l.level >= lo && l.level <= hi).reduce((x, l) => x + l.count, 0), 0) : null);
+  const diffName = (() => { const d = difficultyOf(form.minLevel, form.maxLevel); return d === 'mixed' ? 'Mixed' : d ? BANDS.find((b) => b.id === d)!.name : describeLevels(form.minLevel, form.maxLevel); })();
   const topicNames = form.categoryIds.map((cid) => topics.data.topics.find((t) => t.id === cid)?.name).filter(Boolean) as string[];
   const packName = packs.data?.packs.find((p) => p.id === form.packId)?.title;
   const canNext = step === 1 ? ready : step === 2 ? !shortage : true;
@@ -145,7 +148,7 @@ export default function GameWizard() {
   const gameSummary: [string, string][] = [
     ['You', mode === 'competing' ? 'Play too' : 'Run for others'],
     ['Questions from', form.source === 'pack' ? (packName ?? 'Your pack') : topicNames.length ? (topicNames.length > 3 ? `${topicNames.slice(0, 3).join(', ')} +${topicNames.length - 3}` : topicNames.join(', ')) : 'Pick topics'],
-    ...(form.source === 'system' ? [['Difficulty', form.minLevel === form.maxLevel ? `Level ${form.minLevel}` : `Levels ${form.minLevel}–${form.maxLevel}`] as [string, string]] : []),
+    ...(form.source === 'system' ? [['Difficulty', diffName] as [string, string]] : []),
     ['Length', `${form.questionLimit} questions · ${form.timeLimitS}s each`],
     ['Summit', `Step ${summit}`],
     ['Players', `Up to ${Math.min(form.maxPlayers, maxCap)}`],
@@ -184,7 +187,7 @@ export default function GameWizard() {
             <h2 id="step-h" className="text-xl">{form.source === 'pack' ? 'Which pack?' : 'What will players be asked?'}</h2>
             {form.source === 'pack' ? (!user ? <Alert tone="info">Sign in to use your private packs. Your choices here are kept.</Alert> : packs.data?.packs.length ? <TileGrid legend="Choose a pack" value={form.packId} onChange={(v) => set('packId', v)} cols="grid-cols-1 sm:grid-cols-2" options={packs.data.packs.map((p) => ({ value: p.id, label: p.title, sub: `${p.questionCount} questions` }))} /> : <Alert tone="info">You don’t have a pack yet. <a className="underline" href="/packs/new">Create one</a>, then come back.</Alert>) : (<>
               <TileMulti legend="Topics" values={form.categoryIds} onChange={(v) => set('categoryIds', v)} options={topicOptions} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" hint={form.categoryIds.length ? `${form.categoryIds.length} selected` : 'Pick at least one topic.'} />
-              <LevelRange min={form.minLevel} max={form.maxLevel} onChange={(a, b) => patch({ minLevel: a, maxLevel: b })} />
+              <DifficultyPicker min={form.minLevel} max={form.maxLevel} onChange={(a, b) => patch({ minLevel: a, maxLevel: b })} counts={bandCount} />
               {!locked && <RuleToggle title="Let players vote on topics" short="Players pick favourites from your selection in the lobby." description="Players pick up to three favourites from your selection in the lobby. You close voting before you start; everyone still gets the same questions." on={form.topicVoting} onChange={(v) => set('topicVoting', v)} />}
             </>)}
           </>}

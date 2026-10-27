@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { MAX_TIME_LIMIT_S, MIN_TIME_LIMIT_S, TIME_PRESETS } from '@elimquest/game-core';
+import { BANDS, MAX_TIME_LIMIT_S, MIN_TIME_LIMIT_S, TIME_PRESETS, describeLevels, difficultyOf, difficultyRange, type Difficulty } from '@elimquest/game-core';
 
 /** Gamified selectors: grids of big, tappable tiles instead of dropdowns. All are real radio/checkbox groups. */
 
@@ -69,31 +69,17 @@ export function TimePicker({ value, onChange, legend = 'Time per question' }: { 
   );
 }
 
-const LEVEL_TITLES = ['Foundations', 'Common', 'Basic detail', 'Comfortable', 'Developing', 'Strong', 'Advanced', 'Specialist', 'Expert', 'Mastery'];
-
-/** Difficulty as a tappable 1–10 ladder. Tap one level for a single level; tap another to stretch the range. */
-export function LevelRange({ min, max, onChange }: { min: number; max: number; onChange: (min: number, max: number) => void }) {
-  const tap = (i: number) => {
-    if (min === max) { if (i < min) onChange(i, max); else if (i > max) onChange(min, i); else onChange(i, i); }
-    else if (i < min) onChange(i, max); else if (i > max) onChange(min, i); else onChange(i, i);
-  };
-  return (
-    <fieldset className="min-w-0">
-      <legend className="mb-1.5 text-sm font-semibold text-ivory/90">Difficulty</legend>
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-10" role="group" aria-label="Difficulty levels">
-        {Array.from({ length: 10 }, (_, k) => k + 1).map((i) => {
-          const on = i >= min && i <= max;
-          return (
-            <button key={i} type="button" aria-pressed={on} aria-label={`Level ${i}, ${LEVEL_TITLES[i - 1]}`} onClick={() => tap(i)}
-              className={`flex min-h-12 flex-col items-center justify-center rounded-xl border text-base font-bold transition active:scale-95 ${on ? 'border-amber bg-amber/20 text-amber' : 'border-line bg-ink text-ivory/80 hover:bg-ink-raised'}`}>
-              {i}<span aria-hidden className="text-[9px] font-normal text-ivory/60">{'▮'.repeat(Math.ceil(i / 3.4))}</span>
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-1.5 text-xs text-ivory/75" aria-live="polite">{min === max ? `Level ${min} only (${LEVEL_TITLES[min - 1]}).` : `Levels ${min}–${max} (${LEVEL_TITLES[min - 1]} → ${LEVEL_TITLES[max - 1]}).`} Tap a level to pick it; tap another to widen the range.</p>
-    </fieldset>
-  );
+/** Mixed (default) or one of four named bands. `counts` is the number of published questions available at each choice. */
+export function DifficultyPicker({ min, max, onChange, counts }: { min: number; max: number; onChange: (min: number, max: number) => void; counts?: (min: number, max: number) => number | null }) {
+  const cur = difficultyOf(min, max);
+  const n = (a: number, b: number) => { const c = counts?.(a, b); return c == null ? undefined : `${c} question${c === 1 ? '' : 's'}`; };
+  const opts: TileOption<string>[] = [
+    { value: 'mixed', label: 'Mixed', sub: n(1, 10) ?? 'A bit of everything' },
+    ...BANDS.map((b) => ({ value: b.id as string, label: b.name, sub: n(b.min, b.max) })),
+    ...(cur ? [] : [{ value: 'custom', label: 'Custom', sub: describeLevels(min, max) }]),
+  ];
+  const hint = cur && cur !== 'mixed' ? BANDS.find((b) => b.id === cur)!.blurb : 'Mixed gives everyone a bit of everything. Pick a band to make it easier or harder.';
+  return <TileGrid legend="Difficulty" value={cur ?? 'custom'} onChange={(v) => { if (v !== 'custom') { const [a, b] = difficultyRange(v as Difficulty); onChange(a, b); } }} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" hint={hint} options={opts} />;
 }
 
 /** A rule you can switch on. With `short` the long description sits behind an "i" so the screen stays compact. */

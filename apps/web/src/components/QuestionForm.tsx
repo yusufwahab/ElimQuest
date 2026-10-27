@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { BANDS, bandOfLevel } from '@elimquest/game-core';
 import { Alert, Button, Input, Select, Textarea } from './ui';
 import { TileGrid } from './Tiles';
 
@@ -33,7 +34,8 @@ export function QuestionForm({ initial, categories, onSubmit, submitLabel = 'Sav
       <Textarea label="Explanation" value={q.explanation} onChange={(e) => set('explanation', e.target.value)} maxLength={1200} required hint="Shown to players after the answer is revealed." />
       <div className="grid gap-3 sm:grid-cols-2">
         <Select label="Topic" value={q.categoryId} onChange={(e) => set('categoryId', e.target.value)}><option value="">Choose…</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-        <TileGrid legend="Difficulty level" value={q.level} onChange={(v) => set('level', v)} cols="grid-cols-5" options={Array.from({ length: 10 }, (_, i) => ({ value: i + 1, label: i + 1, ariaLabel: `Level ${i + 1}` }))} />
+        <TileGrid legend="Difficulty" value={bandOfLevel(q.level).id} onChange={(id) => { if (bandOfLevel(q.level).id !== id) set('level', BANDS.find((b) => b.id === id)!.rep); }} cols="grid-cols-2 sm:grid-cols-4" hint={bandOfLevel(q.level).blurb}
+          options={BANDS.map((b) => ({ value: b.id, label: b.name }))} />
       </div>
       <Input label="Reference (optional)" value={q.reference} onChange={(e) => set('reference', e.target.value)} maxLength={400} hint="e.g. a book, surah and verse, or hadith collection." />
       {admin && <div className="grid gap-3 rounded-xl bg-white/5 p-3">

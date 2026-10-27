@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { DEFAULT_AVATAR, feedbackMessage, optionOrder, sanitizeAvatar } from '@elimquest/game-core';
+import { DEFAULT_AVATAR, describeLevels, feedbackMessage, optionOrder, sanitizeAvatar } from '@elimquest/game-core';
 import type { PlayerPublic } from '@elimquest/contracts';
 import { api, errMsg } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -13,11 +13,11 @@ import { QuestionHeader } from '../components/Countdown';
 import { CoachTip, JourneyStrip } from '../components/Journey';
 import { NextSteps, RecapShare, type NextCard } from '../components/NextSteps';
 import { StickerIcon } from '../components/Stickers';
-import { LevelRange, RULE_TEXT, RuleToggle, TileGrid, TileMulti, TimePicker } from '../components/Tiles';
+import { DifficultyPicker, RULE_TEXT, RuleToggle, TileGrid, TileMulti, TimePicker } from '../components/Tiles';
 import { StepBar, StepNav } from '../components/Stepper';
 import { Alert, Button, ErrorState, LinkButton, LiveRegion, PageLoading } from '../components/ui';
 
-interface Topic { id: string; slug: string; name: string; questionCount: number }
+interface Topic { id: string; slug: string; name: string; questionCount: number; levels: { level: number; count: number }[] }
 interface QView { roundNo: number; text: string; options: { id: string; text: string }[]; shuffleSalt: string; openedAt: number; deadline: number; level?: number; categoryName?: string; isSuper?: boolean }
 interface Settings { questionLimit: number; summitHeight: number; timeLimitS: number; mode: string; superQuestion?: boolean; gentle?: boolean; categoryIds?: string[]; minLevel?: number; maxLevel?: number }
 interface State { id: string; status: 'active' | 'finished'; position: number; roundNo: number; settings: Settings; question: QView | null; succeeded: boolean | null; serverTime: number; history?: any[] }
@@ -61,7 +61,7 @@ function Setup() {
           <div className="card grid gap-4 !p-4 sm:!p-5">
             {step === 0 && <>
               <TileMulti legend="Topics" values={ids} onChange={setSel} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" options={topics.data.topics.map((t) => ({ value: t.id, label: t.name, sub: `${t.questionCount} questions` }))} hint={ids.length ? `${ids.length} selected` : 'Pick at least one.'} />
-              <LevelRange min={lv[0]} max={lv[1]} onChange={(a, b) => setLv([a, b])} />
+              <DifficultyPicker min={lv[0]} max={lv[1]} onChange={(a, b) => setLv([a, b])} counts={(lo, hi) => { const t = topics.data.topics.filter((x) => ids.includes(x.id)); return t.length ? t.reduce((n, x) => n + x.levels.filter((l) => l.level >= lo && l.level <= hi).reduce((y, l) => y + l.count, 0), 0) : null; }} />
             </>}
             {step === 1 && <>
               <TileGrid legend="Questions" value={limit} onChange={(v) => { setLimit(v); setSummit(Math.min(summit, v)); }} cols="grid-cols-5" options={[5, 10, 15, 20, 30].map((n) => ({ value: n, label: n }))} />
@@ -74,7 +74,7 @@ function Setup() {
                 <RuleToggle {...RULE_TEXT.superQuestion} on={rules.superQuestion} onChange={(v) => setRule('superQuestion', v)} />
                 <RuleToggle {...RULE_TEXT.gentle} on={rules.gentle} onChange={(v) => setRule('gentle', v)} />
               </div>
-              <p className="rounded-xl bg-ink p-3 text-sm text-ivory/85">{limit} questions · {time}s each · summit step {sum} · {ids.length} topic{ids.length === 1 ? '' : 's'} · {lv[0] === lv[1] ? `level ${lv[0]}` : `levels ${lv[0]}–${lv[1]}`}</p>
+              <p className="rounded-xl bg-ink p-3 text-sm text-ivory/85">{limit} questions · {time}s each · summit step {sum} · {ids.length} topic{ids.length === 1 ? '' : 's'} · {describeLevels(lv[0], lv[1]).toLowerCase()}</p>
               {start.isError && <Alert tone="error">{errMsg(start.error)}</Alert>}
             </>}
           </div>
@@ -200,9 +200,9 @@ function PracticeResults({ id }: { id: string }) {
     { key: 'again', title: 'Climb again', text: 'A fresh set of questions with the same settings.', action: <Button className="!min-h-11 text-sm" loading={again.isPending} disabled={!s.settings.categoryIds?.length} onClick={() => again.mutate({})}>Quick climb</Button> },
   ];
   // Only suggest stepping up when there is real evidence (enough questions and a strong result).
-  if (h.length >= 5 && pct >= 70 && hi < 10) cards.push({ key: 'harder', title: 'Ready for harder ones?', text: `You got ${pct}% right. Try levels ${Math.min(10, lo + 2)}–${Math.min(10, hi + 3)}.`, action: <Button variant="ghost" className="!min-h-11 text-sm" loading={again.isPending} onClick={() => again.mutate({ minLevel: Math.min(10, lo + 2), maxLevel: Math.min(10, hi + 3) })}>Step it up</Button> });
+  if (h.length >= 5 && pct >= 70 && hi < 10) cards.push({ key: 'harder', title: 'Ready for harder ones?', text: `You got ${pct}% right. Try ${describeLevels(Math.min(10, lo + 2), Math.min(10, hi + 3)).toLowerCase()} questions.`, action: <Button variant="ghost" className="!min-h-11 text-sm" loading={again.isPending} onClick={() => again.mutate({ minLevel: Math.min(10, lo + 2), maxLevel: Math.min(10, hi + 3) })}>Step it up</Button> });
   cards.push({ key: 'host', title: 'Play with friends', text: 'Host your own game in one screen and invite people with a link or QR code.', action: <LinkButton variant="ghost" to="/games/new?template=family" className="!min-h-11 text-sm">Host a game</LinkButton> });
-  cards.push({ key: 'topics', title: 'Try other topics', text: 'Change topics, levels or house rules.', action: <LinkButton variant="ghost" to="/practice" className="!min-h-11 text-sm">Choose topics</LinkButton> });
+  cards.push({ key: 'topics', title: 'Try other topics', text: 'Change topics, length or house rules.', action: <LinkButton variant="ghost" to="/practice" className="!min-h-11 text-sm">Choose topics</LinkButton> });
   const recap = { title: 'Quick climb', heading: s.succeeded ? 'Summit reached!' : `Step ${s.position}`, lines: [`${right} of ${h.length} correct`, `Summit at step ${s.settings.summitHeight}`, s.settings.superQuestion ? 'Super question on' : '', s.settings.gentle ? 'Gentle mode' : ''].filter(Boolean), avatar: adv.avatar, nickname: adv.nickname || 'Adventurer', footer: 'Play on ElimQuest' };
   return (
     <>

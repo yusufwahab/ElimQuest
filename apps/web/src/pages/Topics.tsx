@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { BANDS, describeLevels } from '@elimquest/game-core';
 import { api } from '../lib/api';
 import { CategoryArt } from '../components/art';
-import { Alert, EmptyState, ErrorState, LinkButton, PageLoading, Select } from '../components/ui';
+import { Alert, EmptyState, ErrorState, LinkButton, PageLoading } from '../components/ui';
 
 interface Topic { id: string; slug: string; name: string; description: string; questionCount: number; levels: { level: number; count: number }[] }
 
@@ -11,8 +11,6 @@ export default function Topics() {
   const { slug } = useParams();
   const topicsQ = useQuery({ queryKey: ['topics'], queryFn: () => api<{ topics: Topic[] }>('GET', '/api/topics', undefined, { auth: false }) });
   const cfgQ = useQuery({ queryKey: ['config'], queryFn: () => api<{ fixturesEnabled: boolean }>('GET', '/api/config', undefined, { auth: false }) });
-  const levelsQ = useQuery({ queryKey: ['levels'], queryFn: () => api<{ levels: { level: number; title: string; rubric: string }[] }>('GET', '/api/levels', undefined, { auth: false }) });
-  const [minLevel, setMin] = useState(1);
   if (topicsQ.isPending) return <PageLoading label="Loading topics…" />;
   if (topicsQ.isError) return <ErrorState error={topicsQ.error} onRetry={() => topicsQ.refetch()} />;
   const topics = topicsQ.data.topics;
@@ -35,23 +33,21 @@ export default function Topics() {
           </div>
         </div>
         {banner}
-        <section aria-labelledby="lv"><h2 id="lv" className="mb-3 text-2xl">Difficulty levels</h2>
-          <p className="mb-3 text-sm text-ivory/75">Levels run 1 (foundations) to 10 (mastery) and describe depth of knowledge and reasoning steps. The questions chosen for a live game stay hidden until each round.</p>
-          {t.levels.length ? <ul className="grid gap-2 sm:grid-cols-2">{t.levels.map((l) => { const d = levelsQ.data?.levels.find((x) => x.level === l.level); return <li key={l.level} className="card !p-4"><p className="font-semibold">Level {l.level}{d ? ` · ${d.title}` : ''} <span className="font-normal text-ivory/70">— {l.count} question{l.count === 1 ? '' : 's'}</span></p>{d && <p className="mt-1 text-sm text-ivory/75">{d.rubric}</p>}</li>; })}</ul> : <EmptyState title="No questions published yet" />}
+        <section aria-labelledby="lv"><h2 id="lv" className="mb-3 text-2xl">Difficulty</h2>
+          <p className="mb-3 text-sm text-ivory/75">Questions range from Beginner to Scholar. You don’t pick a level: ElimQuest works out where you are as you play. The questions chosen for a live game stay hidden until each round.</p>
+          {t.levels.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{BANDS.map((b) => { const n = t.levels.filter((l) => l.level >= b.min && l.level <= b.max).reduce((x, l) => x + l.count, 0); return <li key={b.id} className="card !p-4"><p className="font-semibold">{b.name} <span className="font-normal text-ivory/70">— {n} question{n === 1 ? '' : 's'}</span></p><p className="mt-1 text-sm text-ivory/80">{b.blurb}</p></li>; })}</ul> : <p className="text-ivory/70">No published questions yet.</p>}
         </section>
       </div>
     );
   }
 
-  const shown = topics.filter((t) => t.levels.some((l) => l.level >= minLevel));
+  const shown = topics;
   return (
     <div className="container-page grid gap-6 py-8">
       <div><p className="eyebrow mb-2">Explore topics</p><h1 className="text-3xl sm:text-4xl">Choose your path of knowledge</h1></div>
       {banner}
-      <div className="max-w-xs"><Select label="Show topics with questions at level…" value={minLevel} onChange={(e) => setMin(Number(e.target.value))} hint="Filters topics that have at least one question at or above this level.">
-        {Array.from({ length: 10 }, (_, i) => <option key={i} value={i + 1}>{i === 0 ? 'Any level' : `Level ${i + 1} or higher`}</option>)}
-      </Select></div>
-      {shown.length === 0 ? <EmptyState title="No topics match" action={<LinkButton to="/topics" variant="ghost" onClick={() => setMin(1)}>Reset filter</LinkButton>}>There are no published questions at that level yet.</EmptyState> : (
+
+      {shown.length === 0 ? <EmptyState title="No topics match" action={<LinkButton to="/topics" variant="ghost" >Reset filter</LinkButton>}>There are no published questions at that level yet.</EmptyState> : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((t) => (
             <li key={t.id} className="card flex flex-col overflow-hidden !p-0">
@@ -59,7 +55,7 @@ export default function Topics() {
               <div className="flex flex-1 flex-col gap-2 p-4">
                 <h2 className="text-xl"><Link className="inline-flex min-h-11 items-center" to={`/topics/${t.slug}`}>{t.name}</Link></h2>
                 <p className="flex-1 text-sm text-ivory/80">{t.description}</p>
-                <p className="text-xs text-ivory/70">{t.questionCount} questions · levels {t.levels.length ? `${t.levels[0]!.level}–${t.levels.at(-1)!.level}` : 'none yet'}</p>
+                <p className="text-xs text-ivory/70">{t.questionCount} questions · {t.levels.length ? describeLevels(t.levels[0]!.level, t.levels.at(-1)!.level) : 'none yet'}</p>
                 <div className="flex flex-wrap gap-2"><LinkButton variant="ghost" className="!min-h-10 !px-4 text-sm" to={`/practice?topic=${t.slug}`}>Practise</LinkButton><LinkButton variant="ghost" className="!min-h-10 !px-4 text-sm" to={`/games/new?topic=${t.slug}`}>Host</LinkButton></div>
               </div>
             </li>

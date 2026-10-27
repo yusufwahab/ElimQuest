@@ -9,6 +9,7 @@ import { useAdventurer } from '../lib/adventurer';
 import { deviceId, roomCred } from '../lib/storage';
 import { Alert, Button, EmptyState, Input, LinkButton, PageLoading } from '../components/ui';
 import { AvatarEditor, AvatarFigure } from '../components/Avatar';
+import { describeLevels } from '@elimquest/game-core';
 import { JoinPanel } from './Home';
 
 export default function Join() {
@@ -69,7 +70,7 @@ function JoinRoom({ code }: { code: string }) {
         <h1 id="room-title" className="text-3xl">{r.title}</h1>
         <p className="text-ivory/85">Hosted by <strong>{r.hostName}</strong> · {r.hostMode === 'audience' ? 'Run for a group' : 'Host plays too'} · {r.playerCount} joined</p>
         {when && <p className="text-sm text-ivory/80">Gathering: {when}. <em>The host starts the game manually.</em></p>}
-        <p className="text-sm text-ivory/80">{r.categories.map((c) => c.name).join(', ') || 'Custom questions'} · Levels {r.minLevel}–{r.maxLevel} · {r.settings.questionLimit} questions · summit at step {r.settings.summitHeight}</p>
+        <p className="text-sm text-ivory/80">{r.categories.map((c) => c.name).join(', ') || 'Custom questions'} · {describeLevels(r.minLevel, r.maxLevel)} · {r.settings.questionLimit} questions · summit at step {r.settings.summitHeight}</p>
         {(r.settings.superQuestion || r.settings.gentle) && <ul className="flex flex-wrap gap-2" aria-label="House rules">{r.settings.superQuestion && <li className="rounded-full bg-amber/20 px-3 py-1 text-xs font-semibold text-amber">Super question</li>}{r.settings.gentle && <li className="rounded-full bg-teal-bright/20 px-3 py-1 text-xs font-semibold text-teal-bright">Gentle mode</li>}</ul>}
         {r.customContent && <Alert tone="info">These questions were written by the host and haven’t been reviewed by ElimQuest.</Alert>}
         <details open className="rounded-xl bg-white/5 p-3"><summary className="cursor-pointer font-semibold">Rules</summary><ul className="mt-2 grid list-disc gap-1 pl-5 text-sm text-ivory/85">{r.rules.map((x) => <li key={x}>{x}</li>)}</ul></details>

@@ -1,0 +1,1 @@
+{"root":["./src/avatar.ts","./src/bands.ts","./src/deadline.ts","./src/game-core.test.ts","./src/house-rules.test.ts","./src/index.ts","./src/match.ts","./src/nickname.ts","./src/phases.ts","./src/ranking.ts","./src/rng.ts","./src/roomcode.ts","./src/rules.ts","./src/scoring.ts","./src/selection.ts","./src/tension.ts"],"version":"6.0.3"}

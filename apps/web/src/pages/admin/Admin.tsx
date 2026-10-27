@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BANDS, bandOfLevel } from '@elimquest/game-core';
 import { api, download, errMsg } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Alert, Button, EmptyState, ErrorState, Input, LinkButton, PageLoading, Select, Textarea } from '../../components/ui';
@@ -24,16 +25,17 @@ function Dashboard() {
 function Questions() {
   const [f, setF] = useState({ status: '', categoryId: '', level: '', search: '' });
   const cats = useCats();
-  const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+  const band = BANDS.find((b) => b.id === f.level);
+  const qs = new URLSearchParams(Object.entries({ status: f.status, categoryId: f.categoryId, search: f.search, ...(band ? { minLevel: String(band.min), maxLevel: String(band.max) } : {}) }).filter(([, v]) => v)).toString();
   const q = useQuery({ queryKey: ['admin-q', qs], queryFn: () => api<{ questions: any[] }>('GET', `/api/admin/questions?${qs}`) });
   return (<div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl">Questions</h1><div className="flex gap-2"><LinkButton to="/admin/questions/new">New question</LinkButton><LinkButton variant="ghost" to="/admin/import">Import</LinkButton></div></div>
     <div className="grid gap-3 sm:grid-cols-4"><Select label="Status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="">All</option>{STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</Select>
       <Select label="Topic" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}><option value="">All</option>{cats.data?.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
-      <Select label="Level" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="">All</option>{Array.from({ length: 10 }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}</Select>
+      <Select label="Difficulty" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="">All</option>{BANDS.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
       <Input label="Search text" value={f.search} onChange={(e) => setF({ ...f, search: e.target.value })} /></div>
     {q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : q.data.questions.length === 0 ? <EmptyState title="No questions match" /> : (
-      <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm"><caption className="sr-only">Questions</caption><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="p-2">Question</th><th>Topic</th><th>Lvl</th><th>Status</th><th>Author</th></tr></thead>
-        <tbody>{q.data.questions.map((x) => <tr key={x.id} className="border-t border-line"><td className="max-w-md p-2"><Link className="underline" to={`/admin/questions/${x.id}`}>{x.text}</Link>{x.isFixture && <span className="ml-2 rounded bg-amber/20 px-1.5 text-xs text-amber">fixture</span>}<span className="ml-1 text-xs text-ivory/50">v{x.version}</span></td><td>{x.categoryName}</td><td>{x.level}</td><td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge(x.status)}`}>{x.status.replace('_', ' ')}</span></td><td>{x.authorName ?? '—'}</td></tr>)}</tbody></table></div>)}</div>);
+      <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm"><caption className="sr-only">Questions</caption><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="p-2">Question</th><th>Topic</th><th>Difficulty</th><th>Status</th><th>Author</th></tr></thead>
+        <tbody>{q.data.questions.map((x) => <tr key={x.id} className="border-t border-line"><td className="max-w-md p-2"><Link className="underline" to={`/admin/questions/${x.id}`}>{x.text}</Link>{x.isFixture && <span className="ml-2 rounded bg-amber/20 px-1.5 text-xs text-amber">fixture</span>}<span className="ml-1 text-xs text-ivory/50">v{x.version}</span></td><td>{x.categoryName}</td><td>{bandOfLevel(x.level).name}</td><td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge(x.status)}`}>{x.status.replace('_', ' ')}</span></td><td>{x.authorName ?? '—'}</td></tr>)}</tbody></table></div>)}</div>);
 }
 
 function QuestionEditor({ id }: { id: string }) {
@@ -72,7 +74,7 @@ function ImportPage() {
     <div><Button disabled={!file} loading={prev.isPending} onClick={() => prev.mutate()}>Parse & validate</Button></div>
     {prev.isError && <Alert tone="error">{errMsg(prev.error)}</Alert>}
     {s && <><Alert tone={s.invalid ? 'warn' : 'success'} title={`${s.total} rows: ${s.valid} ready, ${s.invalid} with errors, ${s.duplicates} duplicates`}>Invalid rows and duplicates are skipped — they are never partially saved.</Alert>
-      <div className="max-h-96 overflow-auto"><table className="w-full min-w-[34rem] text-left text-sm"><thead className="text-xs text-ivory/60"><tr><th className="p-1">Row</th><th>Question</th><th>Topic</th><th>Lvl</th><th>Result</th></tr></thead><tbody>{prev.data!.rows.map((r) => <tr key={r.row} className="border-t border-line align-top"><td className="p-1">{r.row}</td><td className="pr-2">{r.preview.text}</td><td>{r.preview.category ?? '—'}</td><td>{r.preview.level ?? '—'}</td><td>{r.duplicate ? <span className="text-amber">Duplicate candidate</span> : r.ok ? <span className="text-success">✓ Ready</span> : <span className="text-danger">{r.errors.join('; ')}</span>}</td></tr>)}</tbody></table></div>
+      <div className="max-h-96 overflow-auto"><table className="w-full min-w-[34rem] text-left text-sm"><thead className="text-xs text-ivory/60"><tr><th className="p-1">Row</th><th>Question</th><th>Topic</th><th>Difficulty</th><th>Result</th></tr></thead><tbody>{prev.data!.rows.map((r) => <tr key={r.row} className="border-t border-line align-top"><td className="p-1">{r.row}</td><td className="pr-2">{r.preview.text}</td><td>{r.preview.category ?? '—'}</td><td>{r.preview.level ? bandOfLevel(r.preview.level).name : '—'}</td><td>{r.duplicate ? <span className="text-amber">Duplicate candidate</span> : r.ok ? <span className="text-success">✓ Ready</span> : <span className="text-danger">{r.errors.join('; ')}</span>}</td></tr>)}</tbody></table></div>
       <div><Button disabled={!s.valid || save.isSuccess} loading={save.isPending} onClick={() => save.mutate()}>Save {s.valid} as drafts</Button></div>
       {save.isSuccess && <Alert tone="success">Saved {save.data.saved} drafts. <Link className="underline" to="/admin/questions?status=draft">Review them</Link>.</Alert>}{save.isError && <Alert tone="error">{errMsg(save.error)}</Alert>}</>}</div>);
 }

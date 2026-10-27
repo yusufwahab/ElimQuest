@@ -10,3 +10,4 @@ export * from './avatar';
 export * from './nickname';
 export * from './roomcode';
 export * from './tension';
+export * from './bands';

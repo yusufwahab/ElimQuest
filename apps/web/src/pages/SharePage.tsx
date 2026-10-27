@@ -1,3 +1,4 @@
+import { describeLevels } from '@elimquest/game-core';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -41,7 +42,7 @@ export default function SharePage() {
         </div>
       </div>
       <section className="card grid gap-2" aria-labelledby="sum"><h2 id="sum" className="text-xl">What players will see</h2>
-        <p className="text-sm text-ivory/80">Topics: {s.topics.join(', ') || 'Your private pack'} · Levels {s.levelRange[0]}–{s.levelRange[1]}</p>
+        <p className="text-sm text-ivory/80">Topics: {s.topics.join(', ') || 'Your private pack'} · {describeLevels(s.levelRange[0], s.levelRange[1])}</p>
         <ul className="grid list-disc gap-1 pl-5 text-sm text-ivory/85">{s.rules.map((r) => <li key={r}>{r}</li>)}</ul>
         <p className="text-xs text-ivory/60">No questions, answers, emails or player credentials appear in the shared preview.</p></section>
       <section className="card grid gap-2" aria-labelledby="mail"><h2 id="mail" className="text-xl">Confirmation email</h2>

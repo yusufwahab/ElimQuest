@@ -19,7 +19,7 @@ export function adminRoutes(ctx: Ctx) {
   r.get('/template.csv', (_req, res) => { res.type('text/csv').setHeader('content-disposition', 'attachment; filename="elimquest-template.csv"').send(templateCsv()); });
 
   r.get('/questions', async (req, res) => {
-    const f = z.object({ status: z.string().optional(), categoryId: z.string().uuid().optional(), level: z.coerce.number().int().min(1).max(10).optional(), search: z.string().max(100).optional(), limit: z.coerce.number().int().max(200).optional(), offset: z.coerce.number().int().min(0).optional() }).parse(req.query);
+    const f = z.object({ status: z.string().optional(), categoryId: z.string().uuid().optional(), level: z.coerce.number().int().min(1).max(10).optional(), minLevel: z.coerce.number().int().min(1).max(10).optional(), maxLevel: z.coerce.number().int().min(1).max(10).optional(), search: z.string().max(100).optional(), limit: z.coerce.number().int().max(200).optional(), offset: z.coerce.number().int().min(0).optional() }).parse(req.query);
     res.json({ questions: await listQuestions(db, f) });
   });
   r.get('/questions/:id', async (req, res) => {

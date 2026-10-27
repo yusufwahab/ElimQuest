@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
+import { parseLevel } from '@elimquest/game-core';
 import { questionInputSchema, type QuestionInput } from '@elimquest/contracts';
 import type { Queryable } from './db/db';
 import { HttpError, many } from './repo/util';
@@ -79,8 +80,9 @@ export async function parseImport(q: Queryable, buf: Buffer, fileName: string, k
     let cat = cats.find((c) => c.slug === catKey || c.name.toLowerCase() === catKey);
     if (!cat && kind === 'pack') cat = custom;
     if (!cat) errors.push(`Unknown category “${r.category ?? ''}” (use a category name or slug)`);
-    const level = Number(r.level);
-    if (!Number.isInteger(level) || level < 1 || level > 10) errors.push('level must be a whole number from 1 to 10');
+    const parsed = parseLevel(r.level);
+    const level = parsed ?? NaN;
+    if (parsed === null) errors.push('level must be Beginner, Intermediate, Advanced, Scholar (or a number from 1 to 10)');
     let input: QuestionInput | undefined;
     if (!errors.length) {
       const parsed = questionInputSchema.safeParse({

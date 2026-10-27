@@ -207,12 +207,14 @@ export async function reviewAction(q: Queryable, versionId: string, action: Revi
   return { status: t.to, override };
 }
 
-export async function listQuestions(q: Queryable, f: { status?: string; categoryId?: string; level?: number; search?: string; limit?: number; offset?: number }) {
+export async function listQuestions(q: Queryable, f: { status?: string; categoryId?: string; level?: number; minLevel?: number; maxLevel?: number; search?: string; limit?: number; offset?: number }) {
   const where = ["qu.scope = 'platform'"];
   const p: unknown[] = [];
   if (f.status) { p.push(f.status); where.push(`qv.status = $${p.length}`); }
   if (f.categoryId) { p.push(f.categoryId); where.push(`qu.category_id = $${p.length}`); }
   if (f.level) { p.push(f.level); where.push(`qv.level = $${p.length}`); }
+  if (f.minLevel) { p.push(f.minLevel); where.push(`qv.level >= $${p.length}`); }
+  if (f.maxLevel) { p.push(f.maxLevel); where.push(`qv.level <= $${p.length}`); }
   if (f.search) { p.push(`%${f.search.replace(/[%_]/g, '')}%`); where.push(`qv.text ilike $${p.length}`); }
   p.push(f.limit ?? 50, f.offset ?? 0);
   return many(
