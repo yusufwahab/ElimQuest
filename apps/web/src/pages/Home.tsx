@@ -96,49 +96,46 @@ export default function Home() {
   return (
     <>
       <ResumeBanner />
-      <section className="container-page grid items-center gap-6 py-6 lg:grid-cols-[1.05fr_1fr] lg:gap-10 lg:py-12" aria-labelledby="hero-title">
+      <section className="container-page grid items-center gap-5 py-5 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:py-6" aria-labelledby="hero-title">
         <div className="order-2 grid gap-4 lg:order-1">
           <div>
-            <p className="eyebrow mb-3">{brand.hero.eyebrow}</p>
-            <h1 id="hero-title" className="text-[2.5rem] font-semibold leading-[1.02] sm:text-6xl">{brand.hero.line1}<br /><span className="text-amber">{brand.hero.line2}</span></h1>
-            <p className="mt-3 max-w-md text-base text-ivory/90 sm:text-lg">{brand.description}</p>
+            <p className="eyebrow mb-2">{brand.hero.eyebrow}</p>
+            <h1 id="hero-title" className="text-4xl font-semibold leading-[1.02] sm:text-5xl xl:text-6xl">{brand.hero.line1}<br /><span className="text-amber">{brand.hero.line2}</span></h1>
+            <p className="mt-2 max-w-md text-base text-ivory/90">{brand.description}</p>
+          </div>
+
+          <div aria-labelledby="start-h" role="group" className="grid gap-3">
+            <h2 id="start-h" className="sr-only">Choose how to play</h2>
+            <article className="relative rounded-2xl border-2 border-amber bg-ink-soft p-4 shadow-xl shadow-black/30" aria-labelledby="quick-h">
+              <span className="absolute -top-3 left-4 rounded-full bg-amber px-3 py-0.5 text-xs font-bold text-ink">Start here</span>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0"><h3 id="quick-h" className="text-xl">Quick climb</h3><p className="text-sm text-ivory/80">Solo, 10 questions, no sign-up. Reach step 5 to win.</p></div>
+                <Button className="min-h-12 shrink-0" loading={quick.starting} disabled={!topics.length} onClick={() => quick.start({ ...rules })}>Start climbing <span aria-hidden>→</span></Button>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <RuleToggle {...RULE_TEXT.superQuestion} on={rules.superQuestion} onChange={(v) => setRule('superQuestion', v)} />
+                <RuleToggle {...RULE_TEXT.gentle} on={rules.gentle} onChange={(v) => setRule('gentle', v)} />
+              </div>
+              <Link to="/practice" className="mt-1 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Choose topics &amp; length</Link>
+              {quick.error && <div className="mt-1"><Alert tone="error">{quick.error}</Alert></div>}
+            </article>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <article className="rounded-2xl border border-line bg-ink-soft p-4" aria-labelledby="join-h">
+                <h3 id="join-h" className="mb-2 text-xl">Join friends</h3>
+                <div className="rounded-xl bg-ivory p-3 text-ink"><JoinPanel compact /></div>
+              </article>
+              <article className="flex flex-col rounded-2xl border border-line bg-ink-soft p-4" aria-labelledby="host-h">
+                <h3 id="host-h" className="text-xl">Host a game</h3>
+                <p className="mb-2 text-sm text-ivory/80">Four quick steps, then share a link.</p>
+                <LinkButton to="/games/new" className="min-h-12 w-full">Host a game <span aria-hidden>→</span></LinkButton>
+                <div className="mt-2 flex flex-wrap gap-1.5">{[['family', 'Family night'], ['class', 'Class quiz'], ['event', 'Community event']].map(([t, l]) => <Link key={t} to={`/games/new?template=${t}`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-white/5 px-2.5 text-xs font-semibold hover:bg-white/10">{l}</Link>)}</div>
+              </article>
+            </div>
           </div>
           <p className="text-sm text-ivory/75">That’s <strong className="text-ivory">{adv.nickname || 'your adventurer'}</strong> on the stairs. <button type="button" onClick={adv.openEditor} className="inline-flex min-h-11 items-center font-semibold text-amber underline underline-offset-4">Change your look</button></p>
         </div>
-        <div className="order-1 lg:order-2"><HallHero avatar={adv.avatar} className="h-[15.5rem] rounded-3xl border border-line sm:h-[22rem] lg:h-[30rem]" /></div>
-      </section>
-
-      <section className="container-page" aria-labelledby="start-h">
-        <h2 id="start-h" className="sr-only">Choose how to play</h2>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <article className="relative rounded-2xl border-2 border-amber bg-ink-soft p-5 shadow-xl shadow-black/30" aria-labelledby="quick-h">
-            <span className="absolute -top-3 left-4 rounded-full bg-amber px-3 py-0.5 text-xs font-bold text-ink">Start here</span>
-            <h3 id="quick-h" className="text-2xl">Quick climb</h3>
-            <p className="mt-1 text-sm text-ivory/80">Play solo right now: 10 questions, no sign-up, no waiting. Reach <strong>step 5</strong> within the 10 questions to win — the summit is separate from the question count, so you can afford a few misses.</p>
-            <div className="mt-3 grid gap-2">
-              <RuleToggle {...RULE_TEXT.superQuestion} on={rules.superQuestion} onChange={(v) => setRule('superQuestion', v)} />
-              <RuleToggle {...RULE_TEXT.gentle} on={rules.gentle} onChange={(v) => setRule('gentle', v)} />
-            </div>
-            <Button className="mt-4 min-h-12 w-full" loading={quick.starting} disabled={!topics.length} onClick={() => quick.start({ ...rules })}>Start climbing <span aria-hidden>→</span></Button>
-            <Link to="/practice" className="mt-1 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Choose topics &amp; length</Link>
-            {quick.error && <div className="mt-2"><Alert tone="error">{quick.error}</Alert></div>}
-          </article>
-
-          <article className="rounded-2xl border border-line bg-ink-soft p-5" aria-labelledby="join-h">
-            <h3 id="join-h" className="text-2xl">Join friends</h3>
-            <p className="mb-3 mt-1 text-sm text-ivory/80">Got a code or link from a host? Enter the 6 digits.</p>
-            <div className="rounded-xl bg-ivory p-4 text-ink"><JoinPanel compact /></div>
-            <p className="mt-3 text-xs text-ivory/70">You’ll join as <strong className="text-ivory">{adv.nickname || 'your adventurer'}</strong> — change anything on the next screen.</p>
-          </article>
-
-          <article className="rounded-2xl border border-line bg-ink-soft p-5" aria-labelledby="host-h">
-            <h3 id="host-h" className="text-2xl">Host a game</h3>
-            <p className="mt-1 text-sm text-ivory/80">Set up in one screen. Play along, or run it for a group. Share a link and start when everyone’s here.</p>
-            <LinkButton to="/games/new" className="mt-4 min-h-12 w-full">Host a game <span aria-hidden>→</span></LinkButton>
-            <p className="mb-1 mt-3 text-xs text-ivory/70">Or start from a template:</p>
-            <div className="flex flex-wrap gap-2">{[['family', 'Family night'], ['class', 'Class quiz'], ['event', 'Community event']].map(([t, l]) => <Link key={t} to={`/games/new?template=${t}`} className="inline-flex min-h-11 items-center rounded-xl border border-line bg-white/5 px-3 text-sm font-semibold hover:bg-white/10">{l}</Link>)}</div>
-          </article>
-        </div>
+        <div className="order-1 lg:order-2"><HallHero avatar={adv.avatar} className="h-[12rem] rounded-3xl border border-line sm:h-[20rem] lg:h-[34rem]" /></div>
       </section>
 
       <section className="container-page mt-12" aria-labelledby="paths-title">

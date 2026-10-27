@@ -58,9 +58,12 @@ test('host sets up on one screen (signing in only at Create); guests join; real 
   await expect(host).toHaveURL(/\/games\/new/);
   expect(await host.locator('select').count()).toBe(0);                      // gamified tiles, not dropdowns
 
-  await host.getByRole('button', { name: /family night/i }).click();           // template fills everything in
-  await expect(host.getByLabel('Game title')).toHaveValue('Family night');
+  const next = () => host.getByRole('button', { name: /^continue/i }).click();
+  await host.getByRole('button', { name: /family night/i }).click();           // template fills everything in (step 1 of 4)
+  await next(); await next();                                                 // → Questions → Game
   await host.getByRole('radio', { name: '3', exact: true }).check({ force: true });  // summit of 3 so the game finishes quickly
+  await next();                                                               // → Rules & launch
+  await expect(host.getByLabel('Game title')).toHaveValue('Family night');
   await expect(host.getByLabel(/Super question/)).toBeChecked();             // family template turns both house rules on
   await expect(host.getByLabel(/Gentle mode/)).toBeChecked();
 
@@ -70,7 +73,7 @@ test('host sets up on one screen (signing in only at Create); guests join; real 
   await host.getByRole('link', { name: /create an account/i }).first().click();
   await signUpWithCode(host, 'E2E Host', `e2e${Date.now()}@example.com`);
   await expect(host).toHaveURL(/\/games\/new/);
-  await expect(host.getByLabel('Game title')).toHaveValue('Family night');
+  await expect(host.getByLabel('Game title')).toHaveValue('Family night');       // back on the last step with choices intact
   await host.getByRole('button', { name: /create & open room/i }).click();
 
   // A playing host goes straight into the lobby, already joined, with the invite panel docked.
@@ -118,7 +121,9 @@ test('host sets up on one screen (signing in only at Create); guests join; real 
 test('quick climb: one tap from the landing page, guided by the first-run tutorial, with house rules explained', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Super question').first()).toBeVisible();           // house rules are described before you start
+  await page.getByRole('button', { name: /more about super question/i }).click();   // long explanations sit behind an "i"
   await expect(page.getByText(/climb two steps instead of one/i)).toBeVisible();
+  await page.getByRole('button', { name: /more about gentle mode/i }).click();
   await expect(page.getByText(/you simply stay on your step/i)).toBeVisible();
   await page.getByLabel(/Gentle mode/).check();
   await page.getByRole('button', { name: /start climbing/i }).first().click();
@@ -143,6 +148,7 @@ test('solo setup uses tile selectors (no dropdowns) and levels can be tapped as 
 
 test('time per question: presets plus a custom value clamped to 5–120 seconds', async ({ page }) => {
   await page.goto('/practice');
+  await page.getByRole('button', { name: /^continue/i }).click();                // step 2: length & time
   const box = page.getByLabel('Or set your own');
   await page.getByRole('radio', { name: '10 seconds' }).check({ force: true });
   await expect(box).toHaveValue('10');

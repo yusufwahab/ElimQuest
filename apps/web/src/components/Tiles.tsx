@@ -96,17 +96,25 @@ export function LevelRange({ min, max, onChange }: { min: number; max: number; o
   );
 }
 
-/** A rule you can switch on, with its description always visible. */
-export function RuleToggle({ title, description, on, onChange, badge }: { title: string; description: string; on: boolean; onChange: (v: boolean) => void; badge?: string }) {
+/** A rule you can switch on. With `short` the long description sits behind an "i" so the screen stays compact. */
+export function RuleToggle({ title, description, short, on, onChange, badge }: { title: string; description: string; short?: string; on: boolean; onChange: (v: boolean) => void; badge?: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-left transition has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-amber ${on ? 'border-amber bg-amber/10 ring-2 ring-amber' : 'border-line bg-ink hover:bg-ink-raised'}`}>
-      <input type="checkbox" className="mt-1 size-5 shrink-0 accent-amber" checked={on} onChange={(e) => onChange(e.target.checked)} />
-      <span className="min-w-0"><span className="flex flex-wrap items-center gap-2 text-base font-semibold">{title}{badge && <span className="rounded bg-teal px-1.5 py-0.5 text-[10px] uppercase tracking-wide">{badge}</span>}</span><span className="block text-sm font-normal text-ivory/80">{description}</span></span>
-    </label>
+    <div className={`rounded-xl border transition ${on ? 'border-amber bg-amber/10 ring-2 ring-amber' : 'border-line bg-ink hover:bg-ink-raised'}`}>
+      <div className="flex items-start gap-1 pr-1">
+        <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl p-3 text-left has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-amber">
+          <input type="checkbox" className="mt-1 size-5 shrink-0 accent-amber" checked={on} onChange={(e) => onChange(e.target.checked)} />
+          <span className="min-w-0"><span className="flex flex-wrap items-center gap-2 text-base font-semibold">{title}{badge && <span className="rounded bg-teal px-1.5 py-0.5 text-[10px] uppercase tracking-wide">{badge}</span>}</span>
+            <span className="block text-sm font-normal text-ivory/80">{short ?? description}</span></span>
+        </label>
+        {short && <button type="button" aria-expanded={open} aria-label={`More about ${title.toLowerCase()}`} onClick={() => setOpen((o) => !o)} className="mt-1.5 inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line text-sm font-bold text-ivory/80 hover:bg-white/10">i</button>}
+      </div>
+      {short && open && <p role="note" className="border-t border-line/60 px-3 pb-3 pt-2 text-sm text-ivory/85">{description}</p>}
+    </div>
   );
 }
 
 export const RULE_TEXT = {
-  superQuestion: { title: 'Super question', description: 'One hidden question in the game is a super question. When it opens, everyone is told. Answer it correctly and you climb two steps instead of one. Getting it wrong is the usual one step down.' },
-  gentle: { title: 'Gentle mode', description: 'Wrong or missed answers never push you down — you simply stay on your step. Great for beginners, children and classes.' },
+  superQuestion: { title: 'Super question', short: 'One hidden question is worth two steps.', description: 'One hidden question in the game is a super question. When it opens, everyone is told. Answer it correctly and you climb two steps instead of one. Getting it wrong is the usual one step down.' },
+  gentle: { title: 'Gentle mode', short: 'Wrong answers never push you down.', description: 'Wrong or missed answers never push you down — you simply stay on your step. Great for beginners, children and classes.' },
 };

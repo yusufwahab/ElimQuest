@@ -14,6 +14,7 @@ import { CoachTip, JourneyStrip } from '../components/Journey';
 import { NextSteps, RecapShare, type NextCard } from '../components/NextSteps';
 import { StickerIcon } from '../components/Stickers';
 import { LevelRange, RULE_TEXT, RuleToggle, TileGrid, TileMulti, TimePicker } from '../components/Tiles';
+import { StepBar, StepNav } from '../components/Stepper';
 import { Alert, Button, ErrorState, LinkButton, LiveRegion, PageLoading } from '../components/ui';
 
 interface Topic { id: string; slug: string; name: string; questionCount: number }
@@ -37,6 +38,9 @@ function Setup() {
   const [lv, setLv] = useState<[number, number]>([1, 10]);
   const [limit, setLimit] = useState(10); const [summit, setSummit] = useState(5); const [time, setTime] = useState(30);
   const [rules, setRules] = useState(quickRules.get());
+  const [step, setStep] = useState(0);
+  const [reached, setReached] = useState(0);
+  const go = (i: number) => { setStep(i); setReached((r) => Math.max(r, i)); };
   const ids = sel ?? (() => { const t = topics.data?.topics.find((x) => x.slug === sp.get('topic')); return t ? [t.id] : topics.data?.topics.map((x) => x.id) ?? []; })();
   const sum = Math.min(summit, limit);
   const start = useMutation({
@@ -49,23 +53,33 @@ function Setup() {
   return (
     <>
       <JourneyStrip current={0} steps={JOURNEY} />
-      <div className="container-page grid max-w-3xl gap-4 py-4 pb-8">
-        <div><p className="eyebrow mb-1">Solo</p><h1 className="text-3xl">Climb at your own pace</h1><p className="mt-1 text-ivory/80">Same staircase and rules as a live game. No opponents, no rankings — just you and the summit. No account needed.</p></div>
-        <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); start.mutate(); }} noValidate>
-          <div className="card grid gap-4">
-            <TileMulti legend="Topics" values={ids} onChange={setSel} options={topics.data.topics.map((t) => ({ value: t.id, label: t.name, sub: `${t.questionCount} questions` }))} hint={ids.length ? `${ids.length} selected` : 'Pick at least one.'} />
-            <LevelRange min={lv[0]} max={lv[1]} onChange={(a, b) => setLv([a, b])} />
+      <div className="container-page grid max-w-4xl gap-3 py-4 pb-8">
+        <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="eyebrow mb-0.5">Solo</p><h1 className="text-2xl sm:text-3xl">Climb at your own pace</h1></div>
+          <p className="flex items-center gap-2 text-sm text-ivory/70">Same staircase and rules as a live game. No account needed.</p></div>
+        <StepBar steps={['Topics', 'Length', 'Rules & go']} current={step} reached={reached} onGo={go} />
+        <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (step === 2) start.mutate(); }} noValidate>
+          <div className="card grid gap-4 !p-4 sm:!p-5">
+            {step === 0 && <>
+              <TileMulti legend="Topics" values={ids} onChange={setSel} cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" options={topics.data.topics.map((t) => ({ value: t.id, label: t.name, sub: `${t.questionCount} questions` }))} hint={ids.length ? `${ids.length} selected` : 'Pick at least one.'} />
+              <LevelRange min={lv[0]} max={lv[1]} onChange={(a, b) => setLv([a, b])} />
+            </>}
+            {step === 1 && <>
+              <TileGrid legend="Questions" value={limit} onChange={(v) => { setLimit(v); setSummit(Math.min(summit, v)); }} cols="grid-cols-5" options={[5, 10, 15, 20, 30].map((n) => ({ value: n, label: n }))} />
+              <TimePicker value={time} onChange={setTime} />
+              <TileGrid legend="Steps to the summit" value={sum} onChange={setSummit} cols="grid-cols-7 sm:grid-cols-9 lg:grid-cols-14" hint="Reach this step within the question limit to succeed." options={Array.from({ length: limit - 2 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
+            </>}
+            {step === 2 && <>
+              <h2 className="text-lg">House rules <span className="text-sm font-normal text-ivory/60">(optional)</span></h2>
+              <div className="grid gap-2 md:grid-cols-2">
+                <RuleToggle {...RULE_TEXT.superQuestion} on={rules.superQuestion} onChange={(v) => setRule('superQuestion', v)} />
+                <RuleToggle {...RULE_TEXT.gentle} on={rules.gentle} onChange={(v) => setRule('gentle', v)} />
+              </div>
+              <p className="rounded-xl bg-ink p-3 text-sm text-ivory/85">{limit} questions · {time}s each · summit step {sum} · {ids.length} topic{ids.length === 1 ? '' : 's'} · {lv[0] === lv[1] ? `level ${lv[0]}` : `levels ${lv[0]}–${lv[1]}`}</p>
+              {start.isError && <Alert tone="error">{errMsg(start.error)}</Alert>}
+            </>}
           </div>
-          <div className="card grid gap-4">
-            <TileGrid legend="Questions" value={limit} onChange={(v) => { setLimit(v); setSummit(Math.min(summit, v)); }} cols="grid-cols-5" options={[5, 10, 15, 20, 30].map((n) => ({ value: n, label: n }))} />
-            <TimePicker value={time} onChange={setTime} />
-            <TileGrid legend="Steps to the summit" value={sum} onChange={setSummit} cols="grid-cols-6 sm:grid-cols-8" hint="Reach this step within the question limit to succeed." options={Array.from({ length: limit - 2 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
-          </div>
-          <div className="card grid gap-3"><h2 className="text-lg">House rules <span className="text-sm font-normal text-ivory/60">(optional)</span></h2>
-            <RuleToggle {...RULE_TEXT.superQuestion} on={rules.superQuestion} onChange={(v) => setRule('superQuestion', v)} />
-            <RuleToggle {...RULE_TEXT.gentle} on={rules.gentle} onChange={(v) => setRule('gentle', v)} /></div>
-          {start.isError && <Alert tone="error">{errMsg(start.error)}</Alert>}
-          <Button type="submit" className="min-h-12" loading={start.isPending} disabled={!ids.length}>Start climbing <span aria-hidden>→</span></Button>
+          <StepNav current={step} last={2} onBack={() => go(Math.max(0, step - 1))} onNext={() => go(step + 1)} canNext={step === 0 ? ids.length > 0 : true}
+            final={<Button type="submit" className="min-h-12" loading={start.isPending} disabled={!ids.length}>Start climbing <span aria-hidden>→</span></Button>} />
         </form>
       </div>
     </>
