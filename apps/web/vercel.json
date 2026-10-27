@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "cd ../.. && npm install",
+  "installCommand": "cd ../.. && rm -f package-lock.json && npm install",
   "buildCommand": "cd ../.. && npm run build -w @elimquest/web",
   "outputDirectory": "dist",
   "rewrites": [
