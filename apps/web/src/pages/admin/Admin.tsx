@@ -5,6 +5,7 @@ import { BANDS, bandOfLevel } from '@elimquest/game-core';
 import { api, download, errMsg } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Alert, Button, ConfirmDialog, EmptyState, ErrorState, Input, LinkButton, PageLoading, Select, Textarea } from '../../components/ui';
+import { StatsPage } from './Stats';
 import { QuestionForm, emptyQuestion, type QuestionDraft } from '../../components/QuestionForm';
 
 const STATUSES = ['draft', 'in_review', 'changes_requested', 'approved', 'published', 'rejected', 'archived'];
@@ -139,8 +140,12 @@ function Reports() {
 }
 
 function Audit() {
-  const q = useQuery({ queryKey: ['admin-audit'], queryFn: () => api<{ events: any[] }>('GET', '/api/admin/audit') });
-  return (<div className="grid gap-4"><h1 className="text-2xl">Audit log</h1>{q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : <div className="overflow-x-auto"><table className="w-full min-w-[36rem] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="p-2">When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead><tbody>{q.data.events.map((e) => <tr key={e.id} className="border-t border-line"><td className="p-2 whitespace-nowrap">{new Date(e.createdAt).toLocaleString()}</td><td>{e.actor}</td><td>{e.action}</td><td className="max-w-48 truncate">{e.entityType} {e.entityId.slice(0, 8)}</td></tr>)}</tbody></table></div>}</div>);
+  const { user } = useAuth();
+  const [kind, setKind] = useState<'admin' | 'signins'>('admin');
+  const q = useQuery({ queryKey: ['admin-audit', kind], queryFn: () => api<{ events: any[] }>('GET', `/api/admin/audit?kind=${kind}`) });
+  return (<div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl">{kind === 'signins' ? 'Sign-in log' : 'Audit log'}</h1>
+    {user?.role === 'super_admin' && <div role="group" aria-label="Log type" className="flex gap-1">{([['admin', 'Admin actions'], ['signins', 'Sign-ins']] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium ${kind === k ? 'bg-amber text-ink' : 'bg-white/5 hover:bg-white/10'}`}>{l}</button>)}</div>}</div>
+    {kind === 'signins' && <p className="text-sm text-ivory/75">A sign-in is a new login session we haven’t seen before. Lines are kept for 90 days.</p>}{q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : <div className="overflow-x-auto"><table className="w-full min-w-[36rem] text-left text-sm"><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="p-2">When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead><tbody>{q.data.events.map((e) => <tr key={e.id} className="border-t border-line"><td className="p-2 whitespace-nowrap">{new Date(e.createdAt).toLocaleString()}</td><td>{e.actor}</td><td>{e.action}</td><td className="max-w-48 truncate">{e.entityType} {e.entityId.slice(0, 8)}</td></tr>)}</tbody></table></div>}</div>);
 }
 
 function Users() {
@@ -159,11 +164,12 @@ export default function Admin() {
   if (loading) return <PageLoading />;
   if (!user || !['content_reviewer', 'super_admin'].includes(user.role)) return <div className="container-page max-w-xl py-12"><EmptyState title="You don’t have access to this area" action={<LinkButton to="/">Home</LinkButton>}>Admin tools are limited to content reviewers and super admins.</EmptyState></div>;
   const [a, b] = rest.split('/').filter(Boolean);
-  const nav = [['', 'Overview'], ['questions', 'Questions'], ['review', 'Review queue'], ['import', 'Import'], ['topics', 'Topics & difficulty'], ['reports', 'Reports'], ['audit', 'Audit log'], ...(user.role === 'super_admin' ? [['users', 'Roles & platform']] : [])];
+  const nav = [['', 'Overview'], ['questions', 'Questions'], ['review', 'Review queue'], ['import', 'Import'], ['topics', 'Topics & difficulty'], ['reports', 'Reports'], ['audit', 'Audit log'], ...(user.role === 'super_admin' ? [['stats', 'Usage statistics'], ['users', 'Roles & platform']] : [])];
   let page = <Dashboard />;
   if (a === 'questions') page = b ? <QuestionEditor id={b} /> : <Questions />;
   else if (a === 'review') page = <ReviewQueue />; else if (a === 'import') page = <ImportPage />; else if (a === 'topics') page = <Categories />;
-  else if (a === 'reports') page = <Reports />; else if (a === 'audit') page = <Audit />; else if (a === 'users') page = user.role === 'super_admin' ? <Users /> : <EmptyState title="Super admins only" />;
+  else if (a === 'reports') page = <Reports />; else if (a === 'audit') page = <Audit />; else if (a === 'stats') page = user.role === 'super_admin' ? <StatsPage /> : <EmptyState title="Super admins only" />;
+  else if (a === 'users') page = user.role === 'super_admin' ? <Users /> : <EmptyState title="Super admins only" />;
   return (
     <div className="container-page grid gap-5 py-6 lg:grid-cols-[13rem_1fr]">
       <nav aria-label="Admin" className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">{nav.map(([to, l]) => <NavLink key={to} end={to === ''} to={`/admin/${to}`} className={({ isActive }) => `inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-medium ${isActive ? 'bg-amber text-ink' : 'bg-white/5 hover:bg-white/10'}`}>{l}</NavLink>)}</nav>

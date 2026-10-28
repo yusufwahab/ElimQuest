@@ -11,6 +11,7 @@ import { Mailer } from './email';
 import { GameService } from './game/service';
 import { PracticeService } from './game/practice';
 import { SignupService } from './signup';
+import { Stats } from './stats';
 import { limiter, makeCounter } from './ratelimit';
 import { ensureBaseData, seedFixtures } from './repo/content';
 import { HttpError } from './repo/util';
@@ -48,7 +49,9 @@ export async function createApp(envOverrides: Record<string, string | undefined>
   const practice = new PracticeService(db, env);
   const auth = new Auth(env, db);
   const signup = new SignupService(db, env, mailer, auth);
-  const ctx: Ctx = { env, db, auth, games, practice, mailer, signup, limit: limiter(counter, env) };
+  const stats = new Stats(db, env);
+  auth.onSeen = (u) => { void stats.userSeen({ id: u.id, sessionId: u.sessionId }).catch(() => undefined); };
+  const ctx: Ctx = { env, db, auth, games, practice, mailer, signup, stats, limit: limiter(counter, env) };
 
   const app = express();
   app.set('trust proxy', 1);
@@ -62,6 +65,17 @@ export async function createApp(envOverrides: Record<string, string | undefined>
   app.get('/readyz', async (_req, res) => {
     try { await db.query('select 1'); res.json({ ok: true, db: db.kind }); } catch { res.status(503).json({ ok: false }); }
   });
+
+  // Privacy-preserving visit counter: counts only, no cookie, no IP or user agent stored. Do-Not-Track / Global Privacy Control are honoured.
+  const optedOut = (req: Request) => req.headers.dnt === '1' || req.headers['sec-gpc'] === '1';
+  app.post('/api/t', ctx.limit('track', 120, 60_000, (req) => req.ip ?? 'anon'), (req, res) => {
+    const b = req.body as { path?: unknown; ref?: unknown } | undefined;
+    if (typeof b?.path === 'string' && b.path.length <= 200) {
+      void stats.pageview({ path: b.path, ref: typeof b.ref === 'string' ? b.ref.slice(0, 200) : undefined, ua: String(req.headers['user-agent'] ?? ''), ip: req.ip ?? '', optOut: optedOut(req) }).catch(() => undefined);
+    }
+    res.status(204).end();
+  });
+  app.post('/api/t/signin-failed', ctx.limit('track-fail', 30, 60_000, (req) => req.ip ?? 'anon'), (req, res) => { if (!optedOut(req)) stats.signinFailed(); res.status(204).end(); });
 
   app.use('/api', publicRoutes(ctx), gameRoutes(ctx));
   app.use('/api/packs', packRoutes(ctx));
@@ -101,6 +115,7 @@ export async function createApp(envOverrides: Record<string, string | undefined>
     close: async () => {
       clearInterval(sweepTimer);
       await games.stop();
+      await stats.stop();
       await new Promise<void>((r) => { io.close(() => r()); });
       await counter.close();
       if (!existingDb) await db.close();

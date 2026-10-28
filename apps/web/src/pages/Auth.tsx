@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react
 import { brand } from '@elimquest/config';
 import { useAuth } from '../lib/auth';
 import { ApiError, api, errMsg } from '../lib/api';
+import { trackSigninFailed } from '../lib/track';
 import { Alert, Button, Input, PageLoading } from '../components/ui';
 import { AvatarFigure } from '../components/Avatar';
 
@@ -185,7 +186,7 @@ export default function Auth() {
   return (
     <Shell title="Sign in" sub="Welcome back.">
       {auth.mode === 'dev' && <Alert tone="warn" title="Local development accounts">Supabase isn’t configured, so accounts live in the local dev database. Try host@dev.local / devpassword1, or create one — the sign-up code is shown on screen.</Alert>}
-      <form className="grid gap-4" noValidate onSubmit={run(async () => { await auth.signIn(email.trim(), password); })}>
+      <form className="grid gap-4" noValidate onSubmit={run(async () => { try { await auth.signIn(email.trim(), password); } catch (e) { trackSigninFailed(); throw e; } })}>
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
         <PasswordInput label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
         {err && <Alert tone="error">{err}</Alert>}

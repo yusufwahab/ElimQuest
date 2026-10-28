@@ -6,6 +6,7 @@ import type { GameService } from './game/service';
 import type { PracticeService } from './game/practice';
 import type { Mailer } from './email';
 import type { SignupService } from './signup';
+import type { Stats } from './stats';
 
 export interface Ctx {
   env: Env;
@@ -15,6 +16,7 @@ export interface Ctx {
   practice: PracticeService;
   mailer: Mailer;
   signup: SignupService;
+  stats: Stats;
   limit: (name: string, max: number, windowMs: number, keyFn?: (req: Request) => string) => RequestHandler;
 }
 

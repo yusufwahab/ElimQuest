@@ -1,4 +1,5 @@
-import { Suspense, lazy, type ReactNode } from 'react';
+import { Suspense, lazy, type ReactNode, useEffect } from 'react';
+import { trackPageview } from './lib/track';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { SiteLayout } from './components/Layout';
 import { PageLoading } from './components/ui';
@@ -32,6 +33,8 @@ function Protected({ children }: { children: ReactNode }) {
 }
 
 export function App() {
+  const loc = useLocation();
+  useEffect(() => { trackPageview(loc.pathname); }, [loc.pathname]);
   return (
     <Suspense fallback={<PageLoading />}>
       <Routes>

@@ -137,7 +137,12 @@ export function adminRoutes(ctx: Ctx) {
     res.json({ ok: true });
   });
 
-  r.get('/audit', async (_req, res) => res.json({ events: await many(db, `select a.id, a.action, a.entity_type as "entityType", a.entity_id as "entityId", a.detail, a.created_at as "createdAt", coalesce(p.display_name, nullif(a.actor_label,''), 'system') as actor from audit_events a left join profiles p on p.id=a.actor_id order by a.id desc limit 200`) }));
+  r.get('/audit', async (req, res) => {
+    // Sign-ins are listed separately (super admin only) so they never bury admin actions.
+    const kind = z.enum(['admin', 'signins']).default('admin').parse(req.query.kind);
+    if (kind === 'signins' && req.user!.role !== 'super_admin') throw new HttpError(403, 'Super admins only', 'forbidden');
+    res.json({ events: await many(db, `select a.id, a.action, a.entity_type as "entityType", a.entity_id as "entityId", a.detail, a.created_at as "createdAt", coalesce(p.display_name, nullif(a.actor_label,''), 'system') as actor from audit_events a left join profiles p on p.id=a.actor_id where ($1::text = 'signins') = (a.action like 'auth.%') order by a.id desc limit 200`, [kind]) });
+  });
 
   // Super-admin only: roles and platform settings
   r.get('/users', superOnly, async (req, res) => {
@@ -151,6 +156,15 @@ export function adminRoutes(ctx: Ctx) {
     await db.query('update profiles set role=$2 where id=$1', [target, role]);
     await audit(db, { actorId: req.user!.id, action: 'role.grant', entityType: 'profile', entityId: target, detail: { role } });
     res.json({ ok: true });
+  });
+  // Usage statistics (super admin only). Counts only; see stats.ts for what is and is not recorded.
+  r.get('/stats', superOnly, async (req, res) => {
+    const days = z.coerce.number().int().min(1).max(365).default(30).parse(req.query.days);
+    res.json(await ctx.stats.report(days));
+  });
+  r.get('/stats/questions', superOnly, async (req, res) => {
+    const f = z.object({ sort: z.enum(['hardest', 'easiest', 'reported', 'most']).default('hardest'), min: z.coerce.number().int().min(1).max(1000).default(5), limit: z.coerce.number().int().min(1).max(100).default(30) }).parse(req.query);
+    res.json({ questions: await ctx.stats.questionQuality(f), note: 'From scored multiplayer rounds only. Practice answers are not included.' });
   });
   r.get('/platform', superOnly, async (_req, res) => {
     const live = await one<{ n: number }>(db, "select count(*)::int n from games where phase in ('lobby','countdown','question_open','reveal','climb','paused','recovery_pause')");

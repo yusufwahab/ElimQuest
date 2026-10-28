@@ -9,7 +9,7 @@ import { HttpError, one } from './repo/util';
 const scryptAsync = promisify(scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
 export type Role = 'member' | 'content_reviewer' | 'super_admin';
-export interface AuthUser { id: string; email: string; displayName: string; role: Role }
+export interface AuthUser { id: string; email: string; displayName: string; role: Role; sessionId?: string }
 
 declare module 'express-serve-static-core' {
   interface Request { user?: AuthUser }
@@ -41,14 +41,18 @@ export class Auth {
   }
 
   /** Verifies the signature, issuer and audience; the role is always read from our database, never from the token. */
+  /** Set by the app: told about every verified account request so usage statistics can count active users and new sign-in sessions. */
+  onSeen?: (u: AuthUser) => void;
+
   async verifyBearer(token: string): Promise<AuthUser | null> {
     try {
-      let sub: string; let email = ''; let name = '';
+      let sub: string; let email = ''; let name = ''; let sessionId: string | undefined;
       if (this.env.AUTH_MODE === 'dev') {
         const { payload } = await jwtVerify(token, this.devKey, { issuer: DEV_ISSUER, algorithms: ['HS256'] });
         sub = String(payload.sub);
         email = String(payload.email ?? '');
         name = String(payload.name ?? '');
+        sessionId = `${sub}:${String(payload.iat ?? '')}`;
       } else {
         const issuer = `${this.env.SUPABASE_URL}/auth/v1`;
         const opts = { issuer, audience: 'authenticated' };
@@ -56,6 +60,7 @@ export class Auth {
           ? await jwtVerify(token, new TextEncoder().encode(this.env.SUPABASE_JWT_SECRET), { ...opts, algorithms: ['HS256'] })
           : await jwtVerify(token, this.jwks!, opts);
         sub = String(payload.sub);
+        if (typeof payload.session_id === 'string') sessionId = payload.session_id;
         email = String(payload.email ?? '');
         const meta = (payload.user_metadata ?? {}) as Record<string, unknown>;
         name = String(meta.display_name ?? meta.name ?? email.split('@')[0] ?? 'Player');
@@ -68,7 +73,9 @@ export class Auth {
         [sub, email, name || email.split('@')[0] || 'Player'],
       );
       if (!p) return null;
-      return { id: p.id, email: p.email, displayName: p.display_name, role: p.role };
+      const user: AuthUser = { id: p.id, email: p.email, displayName: p.display_name, role: p.role, sessionId };
+      try { this.onSeen?.(user); } catch { /* statistics never break sign-in */ }
+      return user;
     } catch {
       return null;
     }
