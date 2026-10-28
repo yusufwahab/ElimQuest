@@ -66,7 +66,7 @@ function Setup() {
             {step === 1 && <>
               <TileGrid legend="Questions" value={limit} onChange={(v) => { setLimit(v); setSummit(Math.min(summit, v)); }} cols="grid-cols-5" options={[5, 10, 15, 20, 30].map((n) => ({ value: n, label: n }))} />
               <TimePicker value={time} onChange={setTime} />
-              <TileGrid legend="Steps to the summit" value={sum} onChange={setSummit} cols="grid-cols-7 sm:grid-cols-9 lg:grid-cols-14" hint="Reach this step within the question limit to succeed." options={Array.from({ length: limit - 2 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
+              <TileGrid legend="Steps to the summit" value={sum} onChange={(v) => { setSummit(v); if (v > limit) setLimit([5, 10, 15, 20, 30].find((n) => n >= v) ?? 30); }} cols="grid-cols-6 sm:grid-cols-9 lg:grid-cols-9" hint="Reach this step within the question limit to succeed. Choosing more steps than questions raises the question count." options={Array.from({ length: 18 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
             </>}
             {step === 2 && <>
               <h2 className="text-lg">House rules <span className="text-sm font-normal text-ivory/60">(optional)</span></h2>

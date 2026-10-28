@@ -1,5 +1,5 @@
 import type { Server as IOServer, Socket } from 'socket.io';
-import { announceSchema, kickSchema, reactSchema, submitAnswerSchema, voidSchema, voteSchema } from '@elimquest/contracts';
+import { announceSchema, chatDeleteSchema, chatModeSchema, chatMuteSchema, chatSendSchema, kickSchema, reactSchema, submitAnswerSchema, voidSchema, voteSchema } from '@elimquest/contracts';
 import { isValidRoomCode } from '@elimquest/game-core';
 import { ZodError } from 'zod';
 import type { Ctx } from './ctx';
@@ -54,6 +54,7 @@ export function attachSockets(io: IOServer, ctx: Ctx) {
     games.attach(gameId, participantId);
     const answerLimit = bucket(5, 8);
     const cmdLimit = bucket(3, 6);
+    const chatLimit = bucket(2, 4);
     const who = () => ({ participant: participantId ? { id: participantId, is_spectator: spectator } : null, canControl });
 
     const wrap = (fn: (payload: any) => Promise<unknown>, limit?: () => boolean) => async (payload: unknown, ack?: AckFn) => {
@@ -93,6 +94,9 @@ export function attachSockets(io: IOServer, ctx: Ctx) {
       return games.react(gameId, participantId, reactSchema.parse(p).kind);
     }, cmdLimit));
 
+    socket.on('chat:sync', wrap(async () => games.chatState(gameId, participantId, canControl)));
+    socket.on('chat:send', wrap(async (p) => games.chatSend(gameId, { participantId, spectator, canControl, userId }, chatSendSchema.parse(p).text), chatLimit));
+
     socket.on('host', wrap(async (p: any) => {
       if (!canControl || !userId) throw new HttpError(403, 'Only the host can do that', 'forbidden');
       switch (p?.cmd) {
@@ -100,6 +104,9 @@ export function attachSockets(io: IOServer, ctx: Ctx) {
         case 'pause': case 'resume': case 'next': case 'end': case 'closeVoting': return games.control(gameId, userId, p.cmd);
         case 'announce': return games.announce(gameId, userId, announceSchema.parse(p).message);
         case 'void': return games.voidCurrent(gameId, userId, voidSchema.parse(p).reason);
+        case 'chatMode': return games.chatAdmin(gameId, userId, 'mode', chatModeSchema.parse(p));
+        case 'chatMute': return games.chatAdmin(gameId, userId, 'mute', chatMuteSchema.parse(p));
+        case 'chatDelete': return games.chatAdmin(gameId, userId, 'delete', chatDeleteSchema.parse(p));
         case 'kick': return games.kick(gameId, userId, kickSchema.parse(p).participantId);
         default: throw new HttpError(400, 'Unknown command', 'bad_cmd');
       }

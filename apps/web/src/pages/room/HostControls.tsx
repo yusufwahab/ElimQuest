@@ -5,6 +5,7 @@ import { api, errMsg } from '../../lib/api';
 import { Staircase } from '../../components/Staircase';
 import { CountdownOverlay, TimerBar, useMsLeft } from '../../components/Countdown';
 import { CopyCode, PlayerTile, RulesCard, ScheduleNotice, VotingPanel } from '../../components/RoomParts';
+import { ChatPanel } from '../../components/Chat';
 import { Alert, Button, ConfirmDialog, Input, LiveRegion } from '../../components/ui';
 import { SharePanel } from '../../components/SharePanel';
 import { StatBar } from './Play';
@@ -80,6 +81,7 @@ export default function HostControls() {
       <aside className="grid content-start gap-4">
         <SharePanel gameId={snap.gameId} defaultOpen={ph === 'lobby'} />
         {live && <><div className="relative"><Staircase players={snap.players} youId={null} summit={snap.settings.summitHeight} moveSeq={moveSeq} className="h-56 lg:h-72" />{ph === 'countdown' && <CountdownOverlay endsAt={snap.countdownEndsAt} offset={offset} first={snap.roundNo === 0} />}</div><StatBar snap={snap} /></>}
+        <ChatPanel room={room} snap={snap} collapsible={live} />
         {snap.voting && <VotingPanel snap={snap} onVote={async () => undefined} />}
         <section className="card grid gap-2" aria-labelledby="ros"><h2 id="ros" className="text-xl">{live ? 'Standings' : `Players (${snap.players.length}/${snap.settings.maxPlayers})`}</h2>
           {live ? <ol className="grid max-h-80 gap-1 overflow-auto text-sm">{standings.map(({ item, rank }) => <li key={item.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-2.5 py-1.5"><span><span className="mr-2 text-ivory/60">#{rank}</span>{item.nickname}{!item.connected && <span className="text-xs text-ivory/50"> · offline</span>}</span><span className="flex items-center gap-2 tabular-nums">step {item.position}<button className="min-h-8 px-1.5 text-xs text-danger underline" onClick={() => { if (confirm !== null) return; void run('kick', { participantId: item.id }); }} aria-label={`Remove ${item.nickname}`}>Remove</button></span></li>)}</ol>

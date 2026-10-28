@@ -140,6 +140,15 @@ export const REACTION_KINDS = ['star', 'lantern', 'heart', 'bolt', 'flame'] as c
 export type ReactionKind = (typeof REACTION_KINDS)[number];
 export const reactSchema = z.object({ kind: z.enum(REACTION_KINDS) });
 
+/** Room chat: typed text, visible only to the people in that room, never saved. The host chooses when it is open. */
+export const CHAT_MODES = ['off', 'between', 'always'] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
+export const CHAT_MAX = 200;
+export const chatSendSchema = z.object({ text: z.string().min(1).max(CHAT_MAX * 2) });
+export const chatModeSchema = z.object({ mode: z.enum(CHAT_MODES) });
+export const chatMuteSchema = z.object({ participantId: z.string().uuid(), muted: z.boolean() });
+export const chatDeleteSchema = z.object({ id: z.string().min(1).max(20) });
+
 /** Email one-time-code sign-up (our own OTP, sent through Brevo). The account is only created after the code is proven. */
 export const signupStartSchema = z.object({ email: z.string().trim().toLowerCase().email().max(200), displayName: text(40) });
 export const signupVerifySchema = z.object({

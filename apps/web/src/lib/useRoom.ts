@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ReactionKind, RoomSnapshot, ServerEvent } from '@elimquest/contracts';
+import type { ChatMessage, ChatMode, ChatState, ReactionKind, RoomSnapshot, ServerEvent } from '@elimquest/contracts';
 import { SOCKET_URL } from './api';
 import { getAccessToken } from './auth';
 import { initialRoomState, roomReducer, type RoomState } from './roomState';
@@ -19,6 +19,10 @@ export interface RoomApi {
   /** Sticker bursts waiting to be shown; call `dismissReaction(key)` when an animation ends. */
   reactions: { key: number; id: string; kind: ReactionKind }[];
   dismissReaction(key: number): void;
+  /** Room chat: the last messages, whether it is open to everyone, and whether the host muted you. */
+  chat: ChatState & { unread: number };
+  sendChat(text: string): Promise<Ack>;
+  markChatRead(): void;
 }
 
 /** Owns the socket for one room. Live state lives in a reducer; it is never mirrored into a query cache. */
@@ -27,12 +31,15 @@ export function useRoom(code: string): RoomApi {
   const sock = useRef<Socket | null>(null);
   const [reactions, setReactions] = useState<{ key: number; id: string; kind: ReactionKind }[]>([]);
   const reactionKey = useRef(0);
+  const [chat, setChat] = useState<ChatState>({ mode: 'between', messages: [], muted: false });
+  const [readSeq, setReadSeq] = useState(0);
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
   const fetchSnapshot = useCallback(() => {
     const s = sock.current;
     if (!s?.connected) return;
+    s.timeout(8000).emit('chat:sync', null, (err: unknown, ack: Ack<ChatState>) => { if (!err && ack?.ok && ack.data) setChat(ack.data); });
     s.timeout(8000).emit('snapshot', null, (err: unknown, ack: Ack<RoomSnapshot>) => {
       if (err || !ack) return;
       if (ack.ok && ack.data) dispatch({ type: 'snapshot', snap: ack.data, receivedAt: Date.now() });
@@ -52,6 +59,14 @@ export function useRoom(code: string): RoomApi {
     socket.on('connect', fetchSnapshot);
     socket.on('ev', (ev: ServerEvent) => dispatch({ type: 'event', ev }));
     socket.on('reactions', (p: { items: { id: string; kind: ReactionKind }[] }) => setReactions((cur) => [...cur, ...p.items.map((i) => ({ ...i, key: ++reactionKey.current }))].slice(-14)));
+    socket.on('chat', (m: ChatMessage) => setChat((c) => (c.messages.some((x) => x.id === m.id) ? c : { ...c, messages: [...c.messages, m].slice(-100) })));
+    socket.on('chat:del', (p: { id: string }) => setChat((c) => ({ ...c, messages: c.messages.filter((m) => m.id !== p.id) })));
+    socket.on('chat:mode', (p: { mode: ChatMode }) => setChat((c) => ({ ...c, mode: p.mode })));
+    socket.on('chat:muted', (p: { participantId: string; muted: boolean }) => setChat((c) => ({
+      ...c,
+      muted: p.participantId === stateRef.current.snap?.you.participantId ? p.muted : c.muted,
+      ...(c.mutedIds ? { mutedIds: p.muted ? [...new Set([...c.mutedIds, p.participantId])] : c.mutedIds.filter((x) => x !== p.participantId) } : {}),
+    })));
     socket.on('rematch', (p: { code: string }) => dispatch({ type: 'rematch', code: p.code }));
     socket.on('disconnect', (reason) => { if (reason !== 'io client disconnect') dispatch({ type: 'conn', conn: 'reconnecting' }); });
     socket.on('connect_error', (e) => {
@@ -98,6 +113,9 @@ export function useRoom(code: string): RoomApi {
     resync: fetchSnapshot,
     react: (kind) => emit('react', { kind }),
     reactions,
+    chat: { ...chat, unread: chat.messages.filter((m) => Number(m.id) > readSeq && m.from !== stateRef.current.snap?.you.participantId).length },
+    sendChat: (text) => emit('chat:send', { text }),
+    markChatRead: () => setReadSeq(Number(chat.messages[chat.messages.length - 1]?.id ?? 0)),
     dismissReaction: (key) => setReactions((cur) => cur.filter((r) => r.key !== key)),
   };
 }

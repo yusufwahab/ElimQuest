@@ -40,3 +40,21 @@ export function disambiguate(nickname: string, taken: ReadonlySet<string>): stri
   }
   return `${nickname.slice(0, 12)}·${Date.now() % 100000}`;
 }
+
+export type ChatCheck = { ok: true; text: string } | { ok: false; reason: string };
+
+const LINKISH = /(https?:\/\/|www\.|[a-z0-9-]+\.(com|net|org|io|me|co|app|ly|gg|tv|xyz|info|link|click)(?![a-z])|[\w.+-]+@[\w-]+\.[a-z]{2,}|(?:\+?\d[\s().-]?){9,})/i;
+const SUFFIX = ['', 's', 'es', 'ing', 'ed', 'er', 'ers', 'y'];
+
+/** Baseline room-chat check: tidy the text, then refuse links/contact details and a short list of abusive words (whole words only). */
+export function checkChatText(raw: string, max = 200): ChatCheck {
+  const text = normaliseNickname(raw);
+  if (!text) return { ok: false, reason: 'Type a message first.' };
+  if (text.length > max) return { ok: false, reason: `Keep messages under ${max} characters.` };
+  if (LINKISH.test(text)) return { ok: false, reason: 'Links and contact details can’t be shared here.' };
+  for (const token of text.split(/[^\p{L}\p{N}@$!|]+/u)) {
+    const f = flatten(token);
+    if (f && BLOCKED.some((b) => SUFFIX.some((x) => f === b + x) || (b === 'nigg' && f.startsWith(b)))) return { ok: false, reason: 'Please keep it kind — that message wasn’t sent.' };
+  }
+  return { ok: true, text };
+}

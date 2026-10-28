@@ -17,6 +17,7 @@ interface Form {
   allowHistoryReuse: boolean; topicVoting: boolean; superQuestion: boolean; gentle: boolean;
 }
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const MAX_STEPS = 20;
 const blank = (): Form => ({ title: '', hostMode: 'competing', source: 'system', packId: '', categoryIds: [], minLevel: 1, maxLevel: 10, questionLimit: 20, summitHeight: 10, timeLimitS: 30, maxPlayers: 150, when: 'now', local: '', timezone: tz(), allowHistoryReuse: false, topicVoting: false, superQuestion: false, gentle: false });
 
 /** Templates fill the form with sensible choices; everything stays editable. */
@@ -199,7 +200,7 @@ export default function GameWizard() {
               <TileGrid legend="Maximum players" value={Math.min(form.maxPlayers, maxCap)} onChange={(v) => set('maxPlayers', v)} cols="grid-cols-3 sm:grid-cols-5" hint={`This server allows up to ${maxCap} per room.`} options={players.map((n) => ({ value: n, label: n }))} />
             </div>
             <TimePicker value={form.timeLimitS} onChange={(v) => set('timeLimitS', v)} />
-            <TileGrid legend="Steps to win (summit height)" value={summit} onChange={(v) => set('summitHeight', v)} cols="grid-cols-7 sm:grid-cols-9 lg:grid-cols-14" hint={`The first to reach step ${summit} wins; everyone arriving in the same round wins together. Separate from the question count, so a long game doesn’t need a perfect run.`} options={Array.from({ length: form.questionLimit - 2 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
+            <TileGrid legend="Steps to win (summit height)" value={summit} onChange={(v) => setForm((f) => ({ ...f, summitHeight: v, questionLimit: v > f.questionLimit ? ([10, 20, 30].find((n) => n >= v) ?? 30) : f.questionLimit }))} cols="grid-cols-6 sm:grid-cols-9 lg:grid-cols-9" hint={`The first to reach step ${summit} wins; everyone arriving in the same round wins together. Separate from the question count, so a long game doesn’t need a perfect run. Choosing more steps than questions raises the question count so the top can be reached.`} options={Array.from({ length: MAX_STEPS - 2 }, (_, i) => i + 3).map((n) => ({ value: n, label: n }))} />
             {(shortage || shortageErr) && (
               <Alert tone="warn" title={`Only ${inv.data?.usable ?? 0} suitable questions available`}>
                 We need {form.questionLimit} ({inv.data?.eligible} match; {inv.data?.fresh} you haven’t used recently).

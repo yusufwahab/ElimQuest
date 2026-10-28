@@ -9,6 +9,7 @@ import { CountdownOverlay, QuestionHeader, useSecondsLeft } from '../../componen
 import { Alert, Button, LiveRegion } from '../../components/ui';
 import { OPTION_LETTERS, RevealChart, RoundHighlights, StreakBadge, TensionCue } from '../../components/RoundInsights';
 import { StickerBar, StickerBurst, StickerIcon } from '../../components/Stickers';
+import { ChatPanel } from '../../components/Chat';
 import { useRoomCtx } from './RoomLayout';
 
 const LETTERS = OPTION_LETTERS;
@@ -138,6 +139,7 @@ export default function Play() {
         <StatBar snap={snap} onPlayers={() => setRoster((r) => !r)} playersOpen={roster} />
         <TensionCue snap={snap} />
         {snap.you.role === 'player' && !answering && ['reveal', 'countdown', 'paused'].includes(phase) && <StickerBar onSend={room.react} />}
+        <ChatPanel room={room} snap={snap} collapsible />
         {roster && <div className="card max-h-64 overflow-auto !p-3"><RosterList players={snap.players} youId={myId} summit={snap.settings.summitHeight} /></div>}
       </section>
 

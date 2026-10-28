@@ -138,6 +138,9 @@ export type ServerEvent =
   | { t: 'round:voided'; v: number; roundId: string; reason: string }
   | { t: 'kicked'; v: number };
 
+export interface ChatMessage { id: string; at: number; from: string; nick: string; host?: boolean; text: string }
+export interface ChatState { mode: import('./schemas').ChatMode; messages: ChatMessage[]; muted: boolean; mutedIds?: string[] }
+
 export interface Ack<T = undefined> { ok: boolean; error?: string; code?: string; data?: T }
 
 export interface HostRosterEntry extends PlayerPublic { answered?: boolean; removed?: boolean }

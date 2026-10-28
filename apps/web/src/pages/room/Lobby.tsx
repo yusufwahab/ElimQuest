@@ -5,6 +5,7 @@ import { CopyCode, PlayerTile, RulesCard, ScheduleNotice, VotingPanel } from '..
 import { Alert, Button, ConfirmDialog, LiveRegion } from '../../components/ui';
 import { SharePanel } from '../../components/SharePanel';
 import { StickerBar, StickerBurst } from '../../components/Stickers';
+import { ChatPanel } from '../../components/Chat';
 
 export default function Lobby() {
   const { room, code } = useRoomCtx();
@@ -64,6 +65,7 @@ export default function Lobby() {
           </div>
         )}
         {snap.voting && <VotingPanel snap={snap} onVote={room.vote} />}
+        <ChatPanel room={room} snap={snap} />
         <RulesCard snap={snap} />
       </aside>
       <ConfirmDialog open={early} title="Start before the gathering time?" confirmLabel="Start now" onCancel={() => setEarly(false)} onConfirm={() => { setEarly(false); void run('start'); }}>

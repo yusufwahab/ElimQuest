@@ -2,10 +2,10 @@ import { randomInt } from 'node:crypto';
 import type { Server as IOServer } from 'socket.io';
 import {
   COUNTDOWN_S, REVEAL_MS, checkNickname, disambiguate, evaluateAfterRound, hashString, highest, isWithinWindow, mulberry32, quotaFromVotes, rankByStep, rulesSummary,
-  sanitizeAvatar, scoreRound, selectQuestions, validateSettings, type GamePhase, type GameSettings,
+  checkChatText, sanitizeAvatar, scoreRound, selectQuestions, validateSettings, type GamePhase, type GameSettings,
 } from '@elimquest/game-core';
 import type {
-  CreateGameInput, FinalStanding, GameFinishedEvent, PlayerPublic, QuestionPublic, ReactionKind, RoomPreview, RoomSnapshot, RoundResultEvent, ServerEvent,
+  ChatMessage, ChatMode, ChatState, CreateGameInput, FinalStanding, GameFinishedEvent, PlayerPublic, QuestionPublic, ReactionKind, RoomPreview, RoomSnapshot, RoundResultEvent, ServerEvent,
 } from '@elimquest/contracts';
 import type { Env } from '../env';
 import type { Db, Queryable } from '../db/db';
@@ -32,6 +32,12 @@ interface Controller {
   pendingReactions: { id: string; kind: ReactionKind }[];
   reactionTimer?: NodeJS.Timeout;
   lastReaction: Map<string, number>;
+  // Room chat lives in memory only (never saved): last 100 messages, who is muted, and each sender's recent send times.
+  chat: ChatMessage[];
+  chatSeq: number;
+  chatMode: ChatMode;
+  muted: Set<string>;
+  chatTimes: Map<string, number[]>;
 }
 
 export interface Identity { participantId: string | null; userId: string | null }
@@ -49,7 +55,7 @@ export class GameService {
   private ctl(gameId: string): Controller {
     let c = this.ctls.get(gameId);
     if (!c) {
-      c = { gameId, v: Date.now(), tail: Promise.resolve(), presence: new Map(), answered: new Set(), pendingJoined: [], pendingLeft: [], pendingConn: new Map(), pendingReactions: [], lastReaction: new Map() };
+      c = { gameId, v: Date.now(), tail: Promise.resolve(), presence: new Map(), answered: new Set(), pendingJoined: [], pendingLeft: [], pendingConn: new Map(), pendingReactions: [], lastReaction: new Map(), chat: [], chatSeq: 0, chatMode: 'between', muted: new Set(), chatTimes: new Map() };
       this.ctls.set(gameId, c);
     }
     return c;
@@ -331,6 +337,64 @@ export class GameService {
       if (joined.length || left.length || connection.length) this.emit(c, { t: 'players:delta', joined, left, connection });
     }, 400);
     c.deltaTimer.unref?.();
+  }
+
+  // ---- room chat ---------------------------------------------------------------------------------
+  /** 'between' keeps chat closed while a question is open so nobody can share answers; the host can open it fully or turn it off. */
+  private chatOpen(c: Controller, phase: string) {
+    if (c.chatMode === 'off') return false;
+    const between = ['lobby', 'countdown', 'reveal', 'climb', 'paused', 'recovery_pause'];
+    return c.chatMode === 'always' ? [...between, 'question_open'].includes(phase) : between.includes(phase);
+  }
+  chatState(gameId: string, participantId: string | null, canControl = false): ChatState {
+    const c = this.ctl(gameId);
+    return { mode: c.chatMode, messages: c.chat, muted: !!participantId && c.muted.has(participantId), ...(canControl ? { mutedIds: [...c.muted] } : {}) };
+  }
+  async chatSend(gameId: string, who: { participantId: string | null; spectator: boolean; canControl: boolean; userId: string | null }, raw: string): Promise<{ id: string }> {
+    const c = this.ctl(gameId);
+    const g = await this.getGame(gameId);
+    if (!g) throw new HttpError(404, 'Game not found');
+    if (c.chatMode === 'off') throw new HttpError(409, 'The host has turned chat off', 'chat_off');
+    if (!this.chatOpen(c, g.phase)) throw new HttpError(409, g.phase === 'question_open' ? 'Chat reopens after this question' : 'Chat is closed right now', 'bad_phase');
+    if (who.spectator || (!who.participantId && !who.canControl)) throw new HttpError(403, 'Spectators can read the chat but not write', 'forbidden');
+    if (who.participantId && c.muted.has(who.participantId)) throw new HttpError(403, 'The host has muted you in chat', 'muted');
+    const key = who.participantId ?? `host:${who.userId}`;
+    const now = this.now();
+    const recent = (c.chatTimes.get(key) ?? []).filter((t) => now - t < 10_000);
+    if (recent.length >= 4 || (recent.length && now - recent[recent.length - 1]! < 600)) throw new HttpError(429, 'Slow down a little', 'rate_limited');
+    const check = checkChatText(raw, 200);
+    if (!check.ok) throw new HttpError(422, check.reason, 'chat_refused');
+    let nick: string;
+    if (who.participantId) {
+      const p = await one<{ nickname: string }>(this.db, 'select nickname from participants where id=$1 and game_id=$2 and not removed', [who.participantId, gameId]);
+      if (!p) throw new HttpError(403, 'You are not in this game', 'forbidden');
+      nick = p.nickname;
+    } else nick = await this.hostName(who.userId!);
+    recent.push(now); c.chatTimes.set(key, recent);
+    const msg: ChatMessage = { id: String(++c.chatSeq), at: now, from: who.participantId ?? 'host', nick, ...(who.canControl ? { host: true } : {}), text: check.text };
+    c.chat.push(msg);
+    if (c.chat.length > 100) c.chat.splice(0, c.chat.length - 100);
+    this.io?.to(SOCKET_ROOM(gameId)).emit('chat', msg);
+    return { id: msg.id };
+  }
+  /** Host moderation: open/close chat, mute a player, remove one message. Mode and mute changes are audited. */
+  async chatAdmin(gameId: string, userId: string, cmd: 'mode' | 'mute' | 'delete', p: { mode?: ChatMode; participantId?: string; muted?: boolean; id?: string }) {
+    const c = this.ctl(gameId);
+    await this.mustHost(gameId, userId);
+    const room = SOCKET_ROOM(gameId);
+    if (cmd === 'mode' && p.mode) {
+      c.chatMode = p.mode;
+      await audit(this.db, { actorId: userId, action: 'host.chat_mode', entityType: 'game', entityId: gameId, gameId, detail: { mode: p.mode } });
+      this.io?.to(room).emit('chat:mode', { mode: p.mode });
+    } else if (cmd === 'mute' && p.participantId) {
+      if (p.muted) c.muted.add(p.participantId); else c.muted.delete(p.participantId);
+      await audit(this.db, { actorId: userId, action: p.muted ? 'host.chat_mute' : 'host.chat_unmute', entityType: 'participant', entityId: p.participantId, gameId });
+      this.io?.to(room).emit('chat:muted', { participantId: p.participantId, muted: !!p.muted });
+    } else if (cmd === 'delete' && p.id) {
+      c.chat = c.chat.filter((m) => m.id !== p.id);
+      this.io?.to(room).emit('chat:del', { id: p.id });
+    } else throw new HttpError(400, 'Bad chat command', 'bad_cmd');
+    return { ok: true };
   }
 
   /** Sticker reactions: fixed icon set, players only, between rounds only, 1 per 1.5 s each; batched into one broadcast. */

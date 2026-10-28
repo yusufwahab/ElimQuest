@@ -195,3 +195,50 @@ describe('custom time per question', () => {
     expect((await api(s, 'POST', '/api/practice', { categoryIds: await topicIds(s), questionLimit: 10, summitHeight: 5, timeLimitS: 3 })).status).toBe(400);
   });
 });
+
+describe('room chat', () => {
+  it('works in the lobby, stays shut during questions by default, refuses links/abuse, rate-limits, and the host can mute, delete and switch it off', async () => {
+    const g = await createGame(s, hostTok, { settings: settings() });
+    const host = await joinBot(s, g.code, 'Ch1', { bearer: hostTok }); const p = await joinBot(s, g.code, 'Ch2');
+    const spec = await joinBot(s, g.code, 'Watcher', { spectator: true });
+    const seen: any[] = []; p.socket.on('chat', (m) => seen.push(m));
+    expect((await p.emit<any>('chat:send', { text: '  Good luck   everyone!  ' })).ok).toBe(true);
+    await sleep(100);
+    expect(seen).toMatchObject([{ nick: 'Ch2', text: 'Good luck everyone!' }]);
+    expect(seen[0].host).toBeUndefined();
+    expect((await host.emit<any>('chat:sync')).data.messages).toHaveLength(1);       // late arrivals get the history
+    await sleep(700);
+    expect((await p.emit('chat:send', { text: 'see http://evil.example' })).code).toBe('chat_refused');
+    expect((await p.emit('chat:send', { text: 'mail me a@b.com' })).code).toBe('chat_refused');
+    expect((await p.emit('chat:send', { text: '' })).code).toBe('invalid');
+    expect((await spec.emit('chat:send', { text: 'hello' })).code).toBe('forbidden'); // spectators read only
+    expect((await spec.emit<any>('chat:sync')).data.messages).toHaveLength(1);
+    // rate limit: a burst is refused
+    await sleep(700);
+    const burst = [];
+    for (let i = 0; i < 5; i++) burst.push((await p.emit('chat:send', { text: `msg ${i}` })).code ?? 'ok');
+    expect(burst).toContain('rate_limited');
+    // host: delete a message, mute a player
+    await sleep(700);
+    const msgs = (await host.emit<any>('chat:sync')).data.messages;
+    expect((await p.emit('host', { cmd: 'chatDelete', id: msgs[0].id })).code).toBe('forbidden');   // players cannot moderate
+    expect((await host.emit('host', { cmd: 'chatDelete', id: msgs[0].id })).ok).toBe(true);
+    expect((await host.emit<any>('chat:sync')).data.messages.find((m: any) => m.id === msgs[0].id)).toBeUndefined();
+    expect((await host.emit('host', { cmd: 'chatMute', participantId: p.id, muted: true })).ok).toBe(true);
+    expect((await p.emit('chat:send', { text: 'am I muted?' })).code).toBe('muted');
+    expect((await p.emit<any>('chat:sync')).data.muted).toBe(true);
+    expect((await host.emit('host', { cmd: 'chatMute', participantId: p.id, muted: false })).ok).toBe(true);
+    // during a question the default mode is closed; "always" opens it; "off" closes everything
+    await host.emit('host', { cmd: 'start' });
+    await p.waitFor('round:open');
+    await sleep(700);
+    expect((await p.emit('chat:send', { text: 'no sharing answers' })).code).toBe('bad_phase');
+    expect((await host.emit('host', { cmd: 'chatMode', mode: 'always' })).ok).toBe(true);
+    expect((await p.emit('chat:send', { text: 'open now' })).ok).toBe(true);
+    expect((await host.emit('host', { cmd: 'chatMode', mode: 'off' })).ok).toBe(true);
+    await sleep(700);
+    expect((await p.emit('chat:send', { text: 'still there?' })).code).toBe('chat_off');
+    expect((await host.emit('host', { cmd: 'chatMode', mode: 'loud' })).code).toBe('invalid');
+    [host, p, spec].forEach((x) => x.close());
+  });
+});
