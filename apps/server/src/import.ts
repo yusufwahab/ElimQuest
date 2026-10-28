@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import { parseLevel } from '@elimquest/game-core';
 import { questionInputSchema, type QuestionInput } from '@elimquest/contracts';
 import type { Queryable } from './db/db';
@@ -22,34 +23,89 @@ export interface ParsedRow {
   input?: QuestionInput;
 }
 
+/** Friendly column names (as used in review workbooks) → the importer's column names. */
+const HEADER_ALIASES: Record<string, string> = {
+  'question id': 'id', 'question text': 'question', 'option a': 'option_a', 'option b': 'option_b', 'option c': 'option_c', 'option d': 'option_d',
+  'correct answer': 'correct', 'topic': 'category', 'difficulty band': 'level', 'difficulty': 'level', 'qur’an reference': 'reference', "qur'an reference": 'reference', 'source': 'reference',
+};
+
+/**
+ * Some generators (e.g. the Open XML SDK) write prefixed XML (<x:worksheet>) and Excel "tables" in ways ExcelJS cannot load.
+ * Rewrite to plain XML and drop table parts (formatting only) so the cell data reads normally.
+ */
+async function normaliseWorkbook(buf: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buf);
+  for (const name of Object.keys(zip.files)) {
+    const f = zip.files[name]!;
+    if (f.dir) continue;
+    if (/^xl\/tables\//.test(name)) { zip.remove(name); continue; }
+    if (!/\.(xml|rels)$/.test(name)) continue;
+    let t = (await f.async('string')).replace(/^\uFEFF/, '');
+    if (/xmlns:x="http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main"/.test(t)) t = t.replace(/<(\/?)x:/g, '<$1').replace(/xmlns:x=/g, 'xmlns=');
+    if (/^xl\/worksheets\/sheet\d+\.xml$/.test(name)) t = t.replace(/<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>/g, '');
+    if (/^xl\/worksheets\/_rels\//.test(name)) t = t.replace(/<Relationship\b[^>]*\/tables\/[^>]*\/>|<Relationship\b[^>]*relationships\/table"[^>]*\/>/g, '');
+    zip.file(name, t);
+  }
+  return zip.generateAsync({ type: 'nodebuffer' });
+}
+
 async function readRawRows(buf: Buffer, fileName: string): Promise<Record<string, string>[]> {
   const lower = fileName.toLowerCase();
   if (lower.endsWith('.xlsm') || lower.endsWith('.xlsb') || lower.endsWith('.xls')) throw new HttpError(415, 'Macro-enabled and legacy workbooks are not accepted. Use .xlsx or .csv.', 'bad_file');
   if (lower.endsWith('.csv')) {
     const text = buf.toString('utf8').replace(/^﻿/, '');
-    const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim().toLowerCase() });
+    const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true, transformHeader: (h) => { const k = h.trim().toLowerCase(); return HEADER_ALIASES[k] ?? k; } });
     return parsed.data;
   }
   if (lower.endsWith('.xlsx')) {
     if (buf.subarray(0, 2).toString('latin1') !== 'PK') throw new HttpError(415, 'That file is not a valid .xlsx workbook', 'bad_file');
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf as any);
-    const ws = wb.worksheets[0];
-    if (!ws) return [];
-    const headers: string[] = [];
-    ws.getRow(1).eachCell((cell, col) => { headers[col] = String(cell.value ?? '').trim().toLowerCase(); });
+    try { await wb.xlsx.load((await normaliseWorkbook(buf)) as any); }
+    catch (e) { console.error('[import] xlsx load failed', (e as Error)?.message); throw new HttpError(400, 'Could not read that workbook. Re-save it as .xlsx (or export to .csv) and try again.', 'bad_file'); }
+    const cellText = (cell: ExcelJS.Cell): string => {
+      const v = cell.value as any;
+      if (v == null) return '';
+      if (typeof v !== 'object') return String(v);
+      if (v instanceof Date) return v.toISOString();
+      // Formulas are never evaluated: take the cached result as plain text only.
+      const rich = (x: any): string => Array.isArray(x?.richText) ? x.richText.map((t: { text?: string }) => t.text ?? '').join('') : '';
+      if (rich(v)) return rich(v);
+      const inner = v.result ?? v.text ?? '';
+      return typeof inner === 'object' ? rich(inner) : String(inner);
+    };
+    // Find the sheet and header row: a workbook may start with an instructions sheet or title rows above the headers.
+    const headerOf = (ws: ExcelJS.Worksheet) => {
+      for (let r = 1; r <= Math.min(ws.rowCount, 15); r++) {
+        const h: string[] = [];
+        ws.getRow(r).eachCell((c, col) => { h[col] = HEADER_ALIASES[cellText(c).trim().toLowerCase()] ?? cellText(c).trim().toLowerCase(); });
+        if (h.includes('question') && h.includes('correct')) return { r, h };
+      }
+      return null;
+    };
+    const found = wb.worksheets.map((ws) => ({ ws, hd: headerOf(ws) })).find((x) => x.hd);
+    if (!found) return [];
+    const { ws, hd } = found as { ws: ExcelJS.Worksheet; hd: { r: number; h: string[] } };
     const rows: Record<string, string>[] = [];
     ws.eachRow((row, n) => {
-      if (n === 1) return;
+      if (n <= hd.r) return;
       const rec: Record<string, string> = {};
-      row.eachCell((cell, col) => {
-        const v = cell.value as any;
-        // Formulas are never evaluated: take the cached result as plain text only.
-        const text = v && typeof v === 'object' ? (v.result ?? v.text ?? '') : v;
-        if (headers[col]) rec[headers[col]!] = String(text ?? '');
-      });
+      row.eachCell((cell, col) => { if (hd.h[col]) rec[hd.h[col]!] = cellText(cell); });
       if (Object.values(rec).some((x) => x.trim())) rows.push(rec);
     });
+    // Review workbooks keep the source on a second sheet, keyed by "Question ID".
+    if (rows.some((r) => r.id) && !rows.some((r) => r.reference)) {
+      const refs = new Map<string, string>();
+      for (const other of wb.worksheets) {
+        if (other === ws) continue;
+        let hr = 0; const oh: string[] = [];
+        for (let r = 1; r <= Math.min(other.rowCount, 15) && !hr; r++) { const t: string[] = []; other.getRow(r).eachCell((c, col) => { t[col] = cellText(c).trim().toLowerCase(); }); if (t.includes('question id')) { hr = r; t.forEach((x, i) => { oh[i] = x; }); } }
+        if (!hr) continue;
+        const idCol = oh.indexOf('question id'), refCol = oh.findIndex((x) => x && /reference/.test(x));
+        if (refCol < 0) continue;
+        other.eachRow((row, n) => { if (n > hr) { const id = cellText(row.getCell(idCol)).trim(), ref = cellText(row.getCell(refCol)).trim(); if (id && ref) refs.set(id, ref); } });
+      }
+      for (const r of rows) if (r.id && refs.has(r.id)) r.reference = refs.get(r.id)!;
+    }
     return rows;
   }
   throw new HttpError(415, 'Upload a .csv or .xlsx file', 'bad_file');

@@ -76,7 +76,7 @@ export async function createApp(envOverrides: Record<string, string | undefined>
     if (err instanceof SyntaxError) return void res.status(400).json({ error: 'Malformed JSON', code: 'invalid' });
     const message = (err as Error)?.message ?? '';
     if (/duplicate key|unique constraint/i.test(message)) return void res.status(409).json({ error: 'That already exists', code: 'conflict' });
-    console.error('[http] unexpected error', message); // never log request bodies (may hold answers/tokens)
+    console.error('[http] unexpected error', _req.method, _req.path, message); // never log request bodies (may hold answers/tokens)
     res.status(500).json({ error: 'Something went wrong', code: 'internal' });
   });
 
