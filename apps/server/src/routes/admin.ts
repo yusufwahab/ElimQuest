@@ -42,31 +42,37 @@ export function adminRoutes(ctx: Ctx) {
     const { action, note } = reviewActionSchema.parse(req.body);
     res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), action as ReviewAction, req.user!, note)));
   });
-  const bulkBusy = new Set<string>();
-  // Bulk review steps for many questions at once. Each question is its own transaction, so one failure never blocks the rest.
+  // Bulk review steps for many questions at once. The work runs in the background (one job per admin) and the page polls for progress,
+  // so a long job never hits a request timeout and survives a page refresh. Each question is its own transaction.
+  interface BulkJob { action: string; total: number; processed: number; done: number; failed: { id: string; message: string }[]; running: boolean; startedAt: number; finishedAt?: number }
+  const bulkJobs = new Map<string, BulkJob>();
+  const remaining: Record<string, ReviewAction[]> = { draft: ['submit', 'approve', 'publish'], changes_requested: ['submit', 'approve', 'publish'], in_review: ['approve', 'publish'], approved: ['publish'] };
+  r.get('/questions/bulk/status', (req, res) => res.json({ job: bulkJobs.get(req.user!.id) ?? null }));
   r.post('/questions/bulk', async (req, res) => {
     const { ids, action } = z.object({ ids: z.array(uuid).min(1).max(200), action: z.enum(['submit', 'approve', 'publish', 'archive', 'fast_track']) }).parse(req.body);
-    if (bulkBusy.has(req.user!.id)) throw new HttpError(409, 'A bulk update is already running. Wait for it to finish, then check the list.', 'busy');
-    if (action === 'fast_track' && req.user!.role !== 'super_admin') throw new HttpError(403, 'Only a super admin can fast-track questions to published', 'forbidden');
-    const remaining: Record<string, ReviewAction[]> = { draft: ['submit', 'approve', 'publish'], changes_requested: ['submit', 'approve', 'publish'], in_review: ['approve', 'publish'], approved: ['publish'] };
-    let done = 0;
-    const failed: { id: string; message: string }[] = [];
-    bulkBusy.add(req.user!.id);
-    try { for (const id of ids) {
-      try {
-        await db.tx(async (q) => {
-          let steps: ReviewAction[] = [action as ReviewAction];
-          if (action === 'fast_track') {
-            const v = await one<{ status: string }>(q, 'select status from question_versions where id=$1', [id]);
-            steps = remaining[v?.status ?? ''] ?? [];
-            if (!steps.length) throw new HttpError(409, `Cannot fast-track a ${v?.status ?? 'missing'} question`, 'bad_transition');
-          }
-          for (const st of steps) await reviewAction(q, id, st, req.user!, action === 'fast_track' ? 'Bulk fast-track' : 'Bulk action');
-        });
-        done++;
-      } catch (e) { failed.push({ id, message: e instanceof HttpError ? e.message : 'Failed' }); }
-    } } finally { bulkBusy.delete(req.user!.id); }
-    res.json({ done, failed });
+    const user = req.user!;
+    if (bulkJobs.get(user.id)?.running) throw new HttpError(409, 'A bulk update is already running. Its progress is shown on the page.', 'busy');
+    if (action === 'fast_track' && user.role !== 'super_admin') throw new HttpError(403, 'Only a super admin can fast-track questions to published', 'forbidden');
+    const job: BulkJob = { action, total: ids.length, processed: 0, done: 0, failed: [], running: true, startedAt: Date.now() };
+    bulkJobs.set(user.id, job);
+    void (async () => {
+      for (const id of ids) {
+        try {
+          await db.tx(async (q) => {
+            let steps: ReviewAction[] = [action as ReviewAction];
+            if (action === 'fast_track') {
+              const v = await one<{ status: string }>(q, 'select status from question_versions where id=$1', [id]);
+              steps = remaining[v?.status ?? ''] ?? [];
+              if (!steps.length) throw new HttpError(409, `Cannot fast-track a ${v?.status ?? 'missing'} question`, 'bad_transition');
+            }
+            for (const st of steps) await reviewAction(q, id, st, user, action === 'fast_track' ? 'Bulk fast-track' : 'Bulk action');
+          });
+          job.done++;
+        } catch (e) { job.failed.push({ id, message: e instanceof HttpError ? e.message : 'Failed' }); }
+        job.processed++;
+      }
+    })().catch((e) => console.error('[bulk] job crashed', (e as Error)?.message)).finally(() => { job.running = false; job.finishedAt = Date.now(); });
+    res.status(202).json({ started: true, total: ids.length });
   });
   r.post('/questions/:id/submit', async (req, res) => res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), 'submit', req.user!))));
 

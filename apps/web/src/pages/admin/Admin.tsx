@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BANDS, bandOfLevel } from '@elimquest/game-core';
@@ -31,16 +31,26 @@ function Questions() {
   const qc = useQueryClient(); const { user } = useAuth();
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<string | null>(null);
+  type Job = { action: string; total: number; processed: number; done: number; failed: { id: string; message: string }[]; running: boolean; startedAt: number };
+  // The job runs on the server; this page only starts it and watches progress (so a refresh never loses it).
+  const jobQ = useQuery({ queryKey: ['admin-bulk'], queryFn: () => api<{ job: Job | null }>('GET', '/api/admin/questions/bulk/status'), refetchInterval: (query) => (query.state.data?.job?.running ? 1500 : false) });
+  const job = jobQ.data?.job ?? null;
+  const [seen, setSeen] = useState(0);
   const bulk = useMutation({
-    mutationFn: (action: string) => api<{ done: number; failed: { id: string; message: string }[] }>('POST', '/api/admin/questions/bulk', { ids: [...sel], action }),
-    onSuccess: () => { setSel(new Set()); void qc.invalidateQueries({ queryKey: ['admin-q'] }); void qc.invalidateQueries({ queryKey: ['admin-summary'] }); },
+    mutationFn: (action: string) => api('POST', '/api/admin/questions/bulk', { ids: [...sel], action }),
+    onSuccess: () => { setSel(new Set()); void jobQ.refetch(); },
+    onError: () => void jobQ.refetch(),
   });
+  const running = !!job?.running || bulk.isPending;
+  const processed = job?.processed ?? 0;
+  useEffect(() => { if (job) { void qc.invalidateQueries({ queryKey: ['admin-q'] }); void qc.invalidateQueries({ queryKey: ['admin-summary'] }); } }, [processed, job?.running, qc]);
+  const verb: Record<string, string> = { submit: 'Submitting', approve: 'Approving', publish: 'Publishing', archive: 'Archiving', fast_track: 'Publishing' };
   const rows = q.data?.questions ?? [];
   const allOn = rows.length > 0 && rows.every((x) => sel.has(x.id));
   const toggleAll = () => setSel(allOn ? new Set() : new Set(rows.map((x) => x.id)));
   const toggle = (id: string) => setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   // One request at a time: the dialog closes the moment it is confirmed, and a second click while one is running does nothing.
-  const start = (a: string) => { setConfirm(null); if (!bulk.isPending) bulk.mutate(a); };
+  const start = (a: string) => { setConfirm(null); if (!running) bulk.mutate(a); };
   const run = (a: string) => (a === 'fast_track' || a === 'archive' ? setConfirm(a) : start(a));
   const bl: [string, string][] = [['submit', 'Submit for review'], ['approve', 'Approve'], ['publish', 'Publish'], ...(user?.role === 'super_admin' ? [['fast_track', 'Publish now (skip review)'] as [string, string]] : []), ['archive', 'Archive']];
   return (<div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl">Questions</h1><div className="flex gap-2"><LinkButton to="/admin/questions/new">New question</LinkButton><LinkButton variant="ghost" to="/admin/import">Import</LinkButton></div></div>
@@ -48,10 +58,12 @@ function Questions() {
       <Select label="Topic" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}><option value="">All</option>{cats.data?.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
       <Select label="Difficulty" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="">All</option>{BANDS.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
       <Input label="Search text" value={f.search} onChange={(e) => setF({ ...f, search: e.target.value })} /></div>
-    {sel.size > 0 && <div className="card sticky top-2 z-10 flex flex-wrap items-center gap-2 !p-3" role="region" aria-label="Bulk actions"><strong className="mr-1 text-sm">{sel.size} selected</strong>{bl.map(([a, l]) => <Button key={a} variant={a === 'publish' || a === 'fast_track' ? 'gold' : 'ghost'} className="!min-h-11 text-sm" disabled={bulk.isPending} onClick={() => run(a)}>{l}</Button>)}<Button variant="ghost" className="!min-h-11 text-sm" onClick={() => setSel(new Set())}>Clear</Button></div>}
-    {bulk.isPending && <Alert tone="info">Working on {sel.size} questions… this can take a minute. Please don’t refresh.</Alert>}
-    {bulk.isError && <Alert tone="error">{errMsg(bulk.error)}</Alert>}
-    {bulk.isSuccess && <Alert tone={bulk.data.failed.length ? 'warn' : 'success'} title={`${bulk.data.done} done${bulk.data.failed.length ? `, ${bulk.data.failed.length} skipped` : ''}`}>{bulk.data.failed.length ? `Skipped questions were not in a state that allows this step. First reason: ${bulk.data.failed[0]!.message}` : 'All selected questions were updated.'}</Alert>}
+    {sel.size > 0 && <div className="card sticky top-2 z-10 flex flex-wrap items-center gap-2 !p-3" role="region" aria-label="Bulk actions"><strong className="mr-1 text-sm">{sel.size} selected</strong>{bl.map(([a, l]) => <Button key={a} variant={a === 'publish' || a === 'fast_track' ? 'gold' : 'ghost'} className="!min-h-11 text-sm" disabled={running} onClick={() => run(a)}>{l}</Button>)}<Button variant="ghost" className="!min-h-11 text-sm" onClick={() => setSel(new Set())}>Clear</Button></div>}
+    {running && <div className="card grid gap-2 !p-4" role="status" aria-live="polite"><p className="font-semibold">{verb[job?.action ?? ''] ?? 'Working on'} {job?.total ?? sel.size} questions… {job ? `${job.processed} of ${job.total} done` : 'starting'}</p>
+      <div className="h-3 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Bulk update progress" aria-valuemin={0} aria-valuemax={job?.total ?? 100} aria-valuenow={job?.processed ?? 0}><div className="h-full rounded-full bg-amber transition-all" style={{ width: `${job ? Math.round((job.processed / Math.max(1, job.total)) * 100) : 4}%` }} /></div>
+      <p className="text-sm text-ivory/70">This keeps running on the server, so it is safe to leave this page or refresh it. Please don’t start another update until it finishes.</p></div>}
+    {bulk.isError && !running && <Alert tone="error">{errMsg(bulk.error)}</Alert>}
+    {job && !job.running && job.startedAt > seen && Date.now() - job.startedAt < 1_800_000 && <Alert tone={job.failed.length ? 'warn' : 'success'} title={`${job.done} done${job.failed.length ? `, ${job.failed.length} skipped` : ''}`}>{job.failed.length ? `Skipped questions were not in a state that allows this step. First reason: ${job.failed[0]!.message}. ` : 'All selected questions were updated. '}<button className="underline" onClick={() => setSeen(job.startedAt)}>Dismiss</button></Alert>}
     <ConfirmDialog open={confirm !== null} title={confirm === 'archive' ? 'Archive these questions?' : 'Publish without review?'} confirmLabel={confirm === 'archive' ? 'Archive' : 'Publish now'} danger={confirm === 'archive'} onCancel={() => setConfirm(null)} onConfirm={() => confirm && start(confirm)}>
       {confirm === 'archive' ? <p>{sel.size} questions will be archived and removed from play.</p> : <p>{sel.size} questions will go straight to <strong>published</strong> (submit, approve and publish in one step) and become playable once their topic is published. Only do this for content a qualified person has already checked. It is recorded in the audit log as an override.</p>}
     </ConfirmDialog>
