@@ -42,6 +42,29 @@ export function adminRoutes(ctx: Ctx) {
     const { action, note } = reviewActionSchema.parse(req.body);
     res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), action as ReviewAction, req.user!, note)));
   });
+  // Bulk review steps for many questions at once. Each question is its own transaction, so one failure never blocks the rest.
+  r.post('/questions/bulk', async (req, res) => {
+    const { ids, action } = z.object({ ids: z.array(uuid).min(1).max(200), action: z.enum(['submit', 'approve', 'publish', 'archive', 'fast_track']) }).parse(req.body);
+    if (action === 'fast_track' && req.user!.role !== 'super_admin') throw new HttpError(403, 'Only a super admin can fast-track questions to published', 'forbidden');
+    const remaining: Record<string, ReviewAction[]> = { draft: ['submit', 'approve', 'publish'], changes_requested: ['submit', 'approve', 'publish'], in_review: ['approve', 'publish'], approved: ['publish'] };
+    let done = 0;
+    const failed: { id: string; message: string }[] = [];
+    for (const id of ids) {
+      try {
+        await db.tx(async (q) => {
+          let steps: ReviewAction[] = [action as ReviewAction];
+          if (action === 'fast_track') {
+            const v = await one<{ status: string }>(q, 'select status from question_versions where id=$1', [id]);
+            steps = remaining[v?.status ?? ''] ?? [];
+            if (!steps.length) throw new HttpError(409, `Cannot fast-track a ${v?.status ?? 'missing'} question`, 'bad_transition');
+          }
+          for (const st of steps) await reviewAction(q, id, st, req.user!, action === 'fast_track' ? 'Bulk fast-track' : 'Bulk action');
+        });
+        done++;
+      } catch (e) { failed.push({ id, message: e instanceof HttpError ? e.message : 'Failed' }); }
+    }
+    res.json({ done, failed });
+  });
   r.post('/questions/:id/submit', async (req, res) => res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), 'submit', req.user!))));
 
   // Import: template → upload → parse/validate → preview → explicit save as drafts.
@@ -53,16 +76,22 @@ export function adminRoutes(ctx: Ctx) {
     const b = await one(db, "insert into import_batches(kind, created_by, file_name, summary, rows) values ('admin',$1,$2,$3,$4) returning id", [req.user!.id, name, JSON.stringify(summary), JSON.stringify(rows)]);
     res.json({ batchId: b!.id, summary, rows: rows.map(({ input: _i, ...x }) => x) });
   });
+  const saving = new Set<string>();
   r.post('/import/:batchId/save', async (req, res) => {
-    const b = await one<any>(db, "select * from import_batches where id=$1 and kind='admin' and status='parsed'", [uuid.parse(req.params.batchId)]);
-    if (!b) throw new HttpError(404, 'Import not found or already saved');
+    // Claim the batch first so a double click or retry can never insert the same rows twice.
+    const batchId = uuid.parse(req.params.batchId);
+    const b = saving.has(batchId) ? undefined : await one<any>(db, "select * from import_batches where id=$1 and kind='admin' and status='parsed'", [batchId]);
+    if (!b) throw new HttpError(404, 'This import was already saved (or is still saving). Check Questions → Drafts before trying again.');
     const rows = (b.rows as any[]).filter((x) => x.ok && !x.duplicate);
     let saved = 0;
-    for (let i = 0; i < rows.length; i++) {
-      await createQuestion(db, rows[i].input, { authorId: req.user!.id });
-      saved++;
-      if (i % 25 === 24) await new Promise((r) => setImmediate(r));
-    }
+    saving.add(batchId);
+    try {
+      for (let i = 0; i < rows.length; i++) {
+        await createQuestion(db, rows[i].input, { authorId: req.user!.id });
+        saved++;
+        if (i % 25 === 24) await new Promise((r) => setImmediate(r));
+      }
+    } finally { saving.delete(batchId); }
     await db.query("update import_batches set status='saved' where id=$1", [b.id]);
     await audit(db, { actorId: req.user!.id, action: 'import.save', entityType: 'import_batch', entityId: b.id, detail: { saved, total: (b.rows as any[]).length } });
     // Imported rows are always saved as drafts; nothing is published automatically.

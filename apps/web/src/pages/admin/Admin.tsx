@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BANDS, bandOfLevel } from '@elimquest/game-core';
 import { api, download, errMsg } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { Alert, Button, EmptyState, ErrorState, Input, LinkButton, PageLoading, Select, Textarea } from '../../components/ui';
+import { Alert, Button, ConfirmDialog, EmptyState, ErrorState, Input, LinkButton, PageLoading, Select, Textarea } from '../../components/ui';
 import { QuestionForm, emptyQuestion, type QuestionDraft } from '../../components/QuestionForm';
 
 const STATUSES = ['draft', 'in_review', 'changes_requested', 'approved', 'published', 'rejected', 'archived'];
@@ -27,15 +27,35 @@ function Questions() {
   const cats = useCats();
   const band = BANDS.find((b) => b.id === f.level);
   const qs = new URLSearchParams(Object.entries({ status: f.status, categoryId: f.categoryId, search: f.search, ...(band ? { minLevel: String(band.min), maxLevel: String(band.max) } : {}) }).filter(([, v]) => v)).toString();
-  const q = useQuery({ queryKey: ['admin-q', qs], queryFn: () => api<{ questions: any[] }>('GET', `/api/admin/questions?${qs}`) });
+  const q = useQuery({ queryKey: ['admin-q', qs], queryFn: () => api<{ questions: any[] }>('GET', `/api/admin/questions?${qs}&limit=200`) });
+  const qc = useQueryClient(); const { user } = useAuth();
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const bulk = useMutation({
+    mutationFn: (action: string) => api<{ done: number; failed: { id: string; message: string }[] }>('POST', '/api/admin/questions/bulk', { ids: [...sel], action }),
+    onSuccess: () => { setSel(new Set()); setConfirm(null); void qc.invalidateQueries({ queryKey: ['admin-q'] }); void qc.invalidateQueries({ queryKey: ['admin-summary'] }); },
+  });
+  const rows = q.data?.questions ?? [];
+  const allOn = rows.length > 0 && rows.every((x) => sel.has(x.id));
+  const toggleAll = () => setSel(allOn ? new Set() : new Set(rows.map((x) => x.id)));
+  const toggle = (id: string) => setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const run = (a: string) => (a === 'fast_track' || a === 'archive' ? setConfirm(a) : bulk.mutate(a));
+  const bl: [string, string][] = [['submit', 'Submit for review'], ['approve', 'Approve'], ['publish', 'Publish'], ...(user?.role === 'super_admin' ? [['fast_track', 'Publish now (skip review)'] as [string, string]] : []), ['archive', 'Archive']];
   return (<div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl">Questions</h1><div className="flex gap-2"><LinkButton to="/admin/questions/new">New question</LinkButton><LinkButton variant="ghost" to="/admin/import">Import</LinkButton></div></div>
     <div className="grid gap-3 sm:grid-cols-4"><Select label="Status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="">All</option>{STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</Select>
       <Select label="Topic" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}><option value="">All</option>{cats.data?.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
       <Select label="Difficulty" value={f.level} onChange={(e) => setF({ ...f, level: e.target.value })}><option value="">All</option>{BANDS.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
       <Input label="Search text" value={f.search} onChange={(e) => setF({ ...f, search: e.target.value })} /></div>
+    {sel.size > 0 && <div className="card sticky top-2 z-10 flex flex-wrap items-center gap-2 !p-3" role="region" aria-label="Bulk actions"><strong className="mr-1 text-sm">{sel.size} selected</strong>{bl.map(([a, l]) => <Button key={a} variant={a === 'publish' || a === 'fast_track' ? 'gold' : 'ghost'} className="!min-h-11 text-sm" disabled={bulk.isPending} onClick={() => run(a)}>{l}</Button>)}<Button variant="ghost" className="!min-h-11 text-sm" onClick={() => setSel(new Set())}>Clear</Button></div>}
+    {bulk.isPending && <Alert tone="info">Working on {sel.size} questions… this can take a minute. Please don’t refresh.</Alert>}
+    {bulk.isError && <Alert tone="error">{errMsg(bulk.error)}</Alert>}
+    {bulk.isSuccess && <Alert tone={bulk.data.failed.length ? 'warn' : 'success'} title={`${bulk.data.done} done${bulk.data.failed.length ? `, ${bulk.data.failed.length} skipped` : ''}`}>{bulk.data.failed.length ? `Skipped questions were not in a state that allows this step. First reason: ${bulk.data.failed[0]!.message}` : 'All selected questions were updated.'}</Alert>}
+    <ConfirmDialog open={confirm !== null} title={confirm === 'archive' ? 'Archive these questions?' : 'Publish without review?'} confirmLabel={confirm === 'archive' ? 'Archive' : 'Publish now'} danger={confirm === 'archive'} onCancel={() => setConfirm(null)} onConfirm={() => confirm && bulk.mutate(confirm)}>
+      {confirm === 'archive' ? <p>{sel.size} questions will be archived and removed from play.</p> : <p>{sel.size} questions will go straight to <strong>published</strong> (submit, approve and publish in one step) and become playable once their topic is published. Only do this for content a qualified person has already checked. It is recorded in the audit log as an override.</p>}
+    </ConfirmDialog>
     {q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : q.data.questions.length === 0 ? <EmptyState title="No questions match" /> : (
-      <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm"><caption className="sr-only">Questions</caption><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="p-2">Question</th><th>Topic</th><th>Difficulty</th><th>Status</th><th>Author</th></tr></thead>
-        <tbody>{q.data.questions.map((x) => <tr key={x.id} className="border-t border-line"><td className="max-w-md p-2"><Link className="underline" to={`/admin/questions/${x.id}`}>{x.text}</Link>{x.isFixture && <span className="ml-2 rounded bg-amber/20 px-1.5 text-xs text-amber">fixture</span>}<span className="ml-1 text-xs text-ivory/50">v{x.version}</span></td><td>{x.categoryName}</td><td>{bandOfLevel(x.level).name}</td><td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge(x.status)}`}>{x.status.replace('_', ' ')}</span></td><td>{x.authorName ?? '—'}</td></tr>)}</tbody></table></div>)}</div>);
+      <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm"><caption className="sr-only">Questions</caption><thead className="text-xs uppercase tracking-wider text-ivory/60"><tr><th className="w-12 p-2"><input type="checkbox" className="size-5" aria-label="Select all shown" checked={allOn} onChange={toggleAll} /></th><th className="p-2">Question</th><th>Topic</th><th>Difficulty</th><th>Status</th><th>Author</th></tr></thead>
+        <tbody>{q.data.questions.map((x) => <tr key={x.id} className="border-t border-line"><td className="p-2"><input type="checkbox" className="size-5" aria-label={`Select: ${x.text}`} checked={sel.has(x.id)} onChange={() => toggle(x.id)} /></td><td className="max-w-md p-2"><Link className="underline" to={`/admin/questions/${x.id}`}>{x.text}</Link>{x.isFixture && <span className="ml-2 rounded bg-amber/20 px-1.5 text-xs text-amber">fixture</span>}<span className="ml-1 text-xs text-ivory/50">v{x.version}</span></td><td>{x.categoryName}</td><td>{bandOfLevel(x.level).name}</td><td><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge(x.status)}`}>{x.status.replace('_', ' ')}</span></td><td>{x.authorName ?? '—'}</td></tr>)}</tbody></table></div>)}</div>);
 }
 
 function QuestionEditor({ id }: { id: string }) {
@@ -74,7 +94,7 @@ function ImportPage() {
     <div><Button disabled={!file} loading={prev.isPending} onClick={() => prev.mutate()}>Parse & validate</Button></div>
     {prev.isError && <Alert tone="error">{errMsg(prev.error)}</Alert>}
     {s && <><Alert tone={s.invalid ? 'warn' : 'success'} title={`${s.total} rows: ${s.valid} ready, ${s.invalid} with errors, ${s.duplicates} duplicates`}>Invalid rows and duplicates are skipped — they are never partially saved.</Alert>
-      <div className="max-h-96 overflow-auto"><table className="w-full min-w-[34rem] text-left text-sm"><thead className="text-xs text-ivory/60"><tr><th className="p-1">Row</th><th>Question</th><th>Topic</th><th>Difficulty</th><th>Result</th></tr></thead><tbody>{prev.data!.rows.map((r) => <tr key={r.row} className="border-t border-line align-top"><td className="p-1">{r.row}</td><td className="pr-2">{r.preview.text}</td><td>{r.preview.category ?? '—'}</td><td>{r.preview.level ? bandOfLevel(r.preview.level).name : '—'}</td><td>{r.duplicate ? <span className="text-amber">Duplicate candidate</span> : r.ok ? <span className="text-success">✓ Ready</span> : <span className="text-danger">{r.errors.join('; ')}</span>}</td></tr>)}</tbody></table></div>
+      <div className="max-h-96 overflow-auto"><table className="w-full min-w-[34rem] text-left text-sm"><thead className="text-xs text-ivory/60"><tr><th className="p-1">Row</th><th>Question</th><th className="p-1">Topic</th><th className="p-1">Difficulty</th><th className="p-1">Result</th></tr></thead><tbody>{prev.data!.rows.map((r) => <tr key={r.row} className="border-t border-line align-top"><td className="p-1">{r.row}</td><td className="pr-2">{r.preview.text}</td><td className="p-1">{r.preview.category ?? '—'}</td><td className="p-1">{r.preview.level ? bandOfLevel(r.preview.level).name : '—'}</td><td className="p-1">{r.duplicate ? <span className="text-amber">Duplicate candidate</span> : r.ok ? <span className="text-success">✓ Ready</span> : <span className="text-danger">{r.errors.join('; ')}</span>}</td></tr>)}</tbody></table></div>
       <div><Button disabled={!s.valid || save.isSuccess} loading={save.isPending} onClick={() => save.mutate()}>Save {s.valid} as drafts</Button></div>
       {save.isSuccess && <Alert tone="success">Saved {save.data.saved} drafts. <Link className="underline" to="/admin/questions?status=draft">Review them</Link>.</Alert>}{save.isError && <Alert tone="error">{errMsg(save.error)}</Alert>}</>}</div>);
 }

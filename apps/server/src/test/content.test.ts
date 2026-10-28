@@ -86,6 +86,22 @@ describe('question lifecycle: author → review → publish controls playable in
     expect(d.history.find((h: any) => h.action === 'approve').override).toBe(true);
   });
 
+  it('bulk actions step many questions at once; fast-track is super-admin only and failures do not block the rest', async () => {
+    const cat = (await api(s, 'GET', '/api/admin/categories', undefined, { bearer: admin })).body.categories[0].id;
+    const ids: string[] = [];
+    for (const n of ['one', 'two', 'three']) ids.push((await api(s, 'POST', '/api/admin/questions', q(cat, `Bulk check question number ${n} here?`), { bearer: reviewer })).body.versionId);
+    const sub = await api(s, 'POST', '/api/admin/questions/bulk', { ids, action: 'submit' }, { bearer: reviewer });
+    expect(sub.body).toMatchObject({ done: 3, failed: [] });
+    expect((await api(s, 'POST', '/api/admin/questions/bulk', { ids, action: 'fast_track' }, { bearer: reviewer })).status).toBe(403);
+    const appr = await api(s, 'POST', '/api/admin/questions/bulk', { ids: [...ids, ids[0]!], action: 'approve' }, { bearer: admin });
+    expect(appr.body.done).toBe(3); expect(appr.body.failed).toHaveLength(1);              // the repeated id is already approved
+    const pub = await api(s, 'POST', '/api/admin/questions/bulk', { ids, action: 'publish' }, { bearer: admin });
+    expect(pub.body).toMatchObject({ done: 3, failed: [] });
+    const fresh = (await api(s, 'POST', '/api/admin/questions', q(cat, 'Bulk fast track question text here?'), { bearer: reviewer })).body.versionId;
+    expect((await api(s, 'POST', '/api/admin/questions/bulk', { ids: [fresh], action: 'fast_track' }, { bearer: admin })).body.done).toBe(1);
+    expect((await api(s, 'GET', `/api/admin/questions/${fresh}`, undefined, { bearer: admin })).body.status).toBe('published');
+    expect((await api(s, 'POST', '/api/admin/questions/bulk', { ids: [], action: 'publish' }, { bearer: admin })).status).toBe(400);
+  });
   it('validates content and the database refuses to publish an unready version', async () => {
     const cat = (await api(s, 'GET', '/api/admin/categories', undefined, { bearer: admin })).body.categories[0].id;
     const dup = await api(s, 'POST', '/api/admin/questions', { ...q(cat), options: ['Same', 'same', 'C', 'D'] }, { bearer: admin });
