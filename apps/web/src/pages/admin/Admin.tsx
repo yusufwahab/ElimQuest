@@ -33,13 +33,15 @@ function Questions() {
   const [confirm, setConfirm] = useState<string | null>(null);
   const bulk = useMutation({
     mutationFn: (action: string) => api<{ done: number; failed: { id: string; message: string }[] }>('POST', '/api/admin/questions/bulk', { ids: [...sel], action }),
-    onSuccess: () => { setSel(new Set()); setConfirm(null); void qc.invalidateQueries({ queryKey: ['admin-q'] }); void qc.invalidateQueries({ queryKey: ['admin-summary'] }); },
+    onSuccess: () => { setSel(new Set()); void qc.invalidateQueries({ queryKey: ['admin-q'] }); void qc.invalidateQueries({ queryKey: ['admin-summary'] }); },
   });
   const rows = q.data?.questions ?? [];
   const allOn = rows.length > 0 && rows.every((x) => sel.has(x.id));
   const toggleAll = () => setSel(allOn ? new Set() : new Set(rows.map((x) => x.id)));
   const toggle = (id: string) => setSel((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const run = (a: string) => (a === 'fast_track' || a === 'archive' ? setConfirm(a) : bulk.mutate(a));
+  // One request at a time: the dialog closes the moment it is confirmed, and a second click while one is running does nothing.
+  const start = (a: string) => { setConfirm(null); if (!bulk.isPending) bulk.mutate(a); };
+  const run = (a: string) => (a === 'fast_track' || a === 'archive' ? setConfirm(a) : start(a));
   const bl: [string, string][] = [['submit', 'Submit for review'], ['approve', 'Approve'], ['publish', 'Publish'], ...(user?.role === 'super_admin' ? [['fast_track', 'Publish now (skip review)'] as [string, string]] : []), ['archive', 'Archive']];
   return (<div className="grid gap-4"><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl">Questions</h1><div className="flex gap-2"><LinkButton to="/admin/questions/new">New question</LinkButton><LinkButton variant="ghost" to="/admin/import">Import</LinkButton></div></div>
     <div className="grid gap-3 sm:grid-cols-4"><Select label="Status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="">All</option>{STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</Select>
@@ -50,7 +52,7 @@ function Questions() {
     {bulk.isPending && <Alert tone="info">Working on {sel.size} questions… this can take a minute. Please don’t refresh.</Alert>}
     {bulk.isError && <Alert tone="error">{errMsg(bulk.error)}</Alert>}
     {bulk.isSuccess && <Alert tone={bulk.data.failed.length ? 'warn' : 'success'} title={`${bulk.data.done} done${bulk.data.failed.length ? `, ${bulk.data.failed.length} skipped` : ''}`}>{bulk.data.failed.length ? `Skipped questions were not in a state that allows this step. First reason: ${bulk.data.failed[0]!.message}` : 'All selected questions were updated.'}</Alert>}
-    <ConfirmDialog open={confirm !== null} title={confirm === 'archive' ? 'Archive these questions?' : 'Publish without review?'} confirmLabel={confirm === 'archive' ? 'Archive' : 'Publish now'} danger={confirm === 'archive'} onCancel={() => setConfirm(null)} onConfirm={() => confirm && bulk.mutate(confirm)}>
+    <ConfirmDialog open={confirm !== null} title={confirm === 'archive' ? 'Archive these questions?' : 'Publish without review?'} confirmLabel={confirm === 'archive' ? 'Archive' : 'Publish now'} danger={confirm === 'archive'} onCancel={() => setConfirm(null)} onConfirm={() => confirm && start(confirm)}>
       {confirm === 'archive' ? <p>{sel.size} questions will be archived and removed from play.</p> : <p>{sel.size} questions will go straight to <strong>published</strong> (submit, approve and publish in one step) and become playable once their topic is published. Only do this for content a qualified person has already checked. It is recorded in the audit log as an override.</p>}
     </ConfirmDialog>
     {q.isPending ? <PageLoading /> : q.isError ? <ErrorState error={q.error} /> : q.data.questions.length === 0 ? <EmptyState title="No questions match" /> : (

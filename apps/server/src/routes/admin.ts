@@ -42,14 +42,17 @@ export function adminRoutes(ctx: Ctx) {
     const { action, note } = reviewActionSchema.parse(req.body);
     res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), action as ReviewAction, req.user!, note)));
   });
+  const bulkBusy = new Set<string>();
   // Bulk review steps for many questions at once. Each question is its own transaction, so one failure never blocks the rest.
   r.post('/questions/bulk', async (req, res) => {
     const { ids, action } = z.object({ ids: z.array(uuid).min(1).max(200), action: z.enum(['submit', 'approve', 'publish', 'archive', 'fast_track']) }).parse(req.body);
+    if (bulkBusy.has(req.user!.id)) throw new HttpError(409, 'A bulk update is already running. Wait for it to finish, then check the list.', 'busy');
     if (action === 'fast_track' && req.user!.role !== 'super_admin') throw new HttpError(403, 'Only a super admin can fast-track questions to published', 'forbidden');
     const remaining: Record<string, ReviewAction[]> = { draft: ['submit', 'approve', 'publish'], changes_requested: ['submit', 'approve', 'publish'], in_review: ['approve', 'publish'], approved: ['publish'] };
     let done = 0;
     const failed: { id: string; message: string }[] = [];
-    for (const id of ids) {
+    bulkBusy.add(req.user!.id);
+    try { for (const id of ids) {
       try {
         await db.tx(async (q) => {
           let steps: ReviewAction[] = [action as ReviewAction];
@@ -62,7 +65,7 @@ export function adminRoutes(ctx: Ctx) {
         });
         done++;
       } catch (e) { failed.push({ id, message: e instanceof HttpError ? e.message : 'Failed' }); }
-    }
+    } } finally { bulkBusy.delete(req.user!.id); }
     res.json({ done, failed });
   });
   r.post('/questions/:id/submit', async (req, res) => res.json(await db.tx((q) => reviewAction(q, uuid.parse(req.params.id), 'submit', req.user!))));
