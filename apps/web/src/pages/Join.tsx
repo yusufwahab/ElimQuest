@@ -15,7 +15,19 @@ import { JoinPanel } from './Home';
 export default function Join() {
   const { code: raw } = useParams();
   const code = raw ? normaliseRoomCode(raw) : '';
-  if (!code) return <div className="container-page grid max-w-2xl gap-5 py-10"><h1 className="text-3xl">Join a game</h1><JoinPanel /></div>;
+  if (!code) return (
+    <div className="container-page grid gap-6 py-8 lg:grid-cols-[1fr_1fr] lg:items-center lg:gap-10 lg:py-14">
+      <div className="grid content-start gap-4">
+        <div><p className="eyebrow mb-2">Play with friends</p><h1 className="text-4xl">Join a game</h1><p className="mt-2 max-w-md text-ivory/85">Enter the 6-digit room code from your host. You’ll pick a nickname and a look, then wait in the lobby until the host starts.</p></div>
+        <JoinPanel />
+      </div>
+      <ol className="grid gap-3" aria-label="How joining works">
+        {[['1', 'Get the code', 'Your host shows a 6-digit code or a QR code — or sends you a link that fills it in for you.'], ['2', 'Choose your look', 'Pick a nickname and build your adventurer. No account is needed.'], ['3', 'Climb together', 'Everyone answers the same question at the same time. Right answers move you up the stairs.']].map(([n, t, d]) => (
+          <li key={n} className="card flex gap-4 !p-4"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber font-bold text-ink" aria-hidden>{n}</span><div><h2 className="text-lg">{t}</h2><p className="text-sm text-ivory/80">{d}</p></div></li>
+        ))}
+      </ol>
+    </div>
+  );
   return <JoinRoom code={code} />;
 }
 

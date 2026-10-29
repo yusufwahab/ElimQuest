@@ -9,7 +9,7 @@ import { useAdventurer } from '../lib/adventurer';
 import { deviceId, practiceCred, quickRules, recentCredentials, roomCred } from '../lib/storage';
 import { CategoryArt } from '../components/art';
 import { HallHero } from '../components/HallHero';
-import { Alert, Button, Divider, LinkButton, SectionTitle, Spinner } from '../components/ui';
+import { Alert, Button, LinkButton, SectionTitle, Spinner } from '../components/ui';
 import { RULE_TEXT, RuleToggle } from '../components/Tiles';
 
 interface Topic { id: string; slug: string; name: string; description: string; questionCount: number }
@@ -96,7 +96,7 @@ export default function Home() {
   return (
     <>
       <ResumeBanner />
-      <section className="container-page grid items-center gap-5 py-5 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:py-6" aria-labelledby="hero-title">
+      <section className="container-page grid gap-5 py-5 lg:grid-cols-[1.05fr_1fr] lg:items-stretch lg:gap-10 lg:py-8" aria-labelledby="hero-title">
         <div className="order-2 grid gap-4 lg:order-1">
           <div>
             <p className="eyebrow mb-2">{brand.hero.eyebrow}</p>
@@ -124,37 +124,41 @@ export default function Home() {
               <article className="rounded-2xl border border-line bg-ink-soft p-4" aria-labelledby="join-h">
                 <h3 id="join-h" className="mb-2 text-xl">Join friends</h3>
                 <div className="rounded-xl bg-ivory p-3 text-ink"><JoinPanel compact /></div>
+                <p className="mt-2 text-sm text-ivory/75">Ask the host for the 6-digit code or scan their QR. No account needed.</p>
               </article>
               <article className="flex flex-col rounded-2xl border border-line bg-ink-soft p-4" aria-labelledby="host-h">
                 <h3 id="host-h" className="text-xl">Host a game</h3>
                 <p className="mb-2 text-sm text-ivory/80">Four quick steps, then share a link.</p>
                 <LinkButton to="/games/new" className="min-h-12 w-full">Host a game <span aria-hidden>→</span></LinkButton>
-                <div className="mt-2 flex flex-wrap gap-1.5">{[['family', 'Family night'], ['class', 'Class quiz'], ['event', 'Community event']].map(([t, l]) => <Link key={t} to={`/games/new?template=${t}`} className="inline-flex min-h-11 items-center rounded-lg border border-line bg-white/5 px-2.5 text-xs font-semibold hover:bg-white/10">{l}</Link>)}</div>
+                <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wider text-ivory/65">Or start from a template</p>
+                <div className="grid grid-cols-3 gap-1.5">{[['family', 'Family night'], ['class', 'Class quiz'], ['event', 'Community event']].map(([t, l]) => <Link key={t} to={`/games/new?template=${t}`} className="flex min-h-11 items-center justify-center rounded-lg border border-line bg-white/5 px-1.5 text-center text-xs font-semibold leading-tight hover:bg-white/10">{l}</Link>)}</div>
               </article>
             </div>
           </div>
-          <p className="text-sm text-ivory/75">That’s <strong className="text-ivory">{adv.nickname || 'your adventurer'}</strong> on the stairs. <button type="button" onClick={adv.openEditor} className="inline-flex min-h-11 items-center font-semibold text-amber underline underline-offset-4">Change your look</button></p>
         </div>
-        <div className="order-1 lg:order-2"><HallHero avatar={adv.avatar} className="h-[12rem] rounded-3xl border border-line sm:h-[20rem] lg:h-[34rem]" /></div>
+        <div className="order-1 flex flex-col gap-3 lg:order-2"><div className="min-h-0 flex-1"><HallHero avatar={adv.avatar} className="h-[12rem] rounded-3xl border border-line sm:h-[20rem] lg:h-full lg:min-h-[32rem]" /></div>
+          <p className="flex flex-wrap items-center justify-center gap-x-1.5 text-center text-sm text-ivory/75"><span>That’s <strong className="text-ivory">{adv.nickname || 'your adventurer'}</strong> on the stairs.</span> <button type="button" onClick={adv.openEditor} className="inline-flex min-h-11 items-center font-semibold text-amber underline underline-offset-4">Change your look</button></p>
+        </div>
       </section>
 
       <section className="container-page mt-12" aria-labelledby="paths-title">
         <SectionTitle eyebrow="Pick a path" sub="Tap a topic to start a quick climb in it right away.">Choose your path of knowledge</SectionTitle>
         <h2 id="paths-title" className="sr-only">Topics</h2>
         {quick.topics.isPending ? <p className="flex justify-center text-ivory/70"><Spinner label="Loading topics…" /></p> : (
-          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {topics.slice(0, 7).map((t) => (
+          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+            {topics.slice(0, 6).map((t) => (
               <li key={t.id} className="group relative overflow-hidden rounded-2xl border border-line">
                 <button type="button" onClick={() => quick.start({ topicIds: [t.id], ...rules })} disabled={quick.starting} className="relative flex aspect-[4/3] w-full items-end text-left">
                   <CategoryArt slug={t.slug} className="absolute inset-0 size-full transition duration-500 group-hover:scale-105" />
-                  <span className="absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/20 to-transparent" aria-hidden />
+                  <span className="absolute inset-0 bg-gradient-to-t from-ink via-ink/55 via-45% to-transparent" aria-hidden />
                   <span className="relative p-3.5"><span className="block font-display text-lg sm:text-xl">{t.name}</span><span className="block text-xs text-ivory/80">{t.questionCount} questions · tap to play</span></span>
                 </button>
-                <Link to={`/games/new?topic=${t.slug}`} className="absolute right-2 top-2 inline-flex min-h-11 items-center rounded-lg bg-ink/75 px-2.5 text-xs font-semibold backdrop-blur-sm hover:bg-ink">Host</Link>
+                <Link to={`/games/new?topic=${t.slug}`} className="absolute right-2 top-2 inline-flex min-h-11 items-center rounded-lg bg-ink/80 px-3 text-xs font-semibold backdrop-blur-sm hover:bg-ink" aria-label={`Host a game about ${t.name}`}>Host<span className="max-sm:hidden">&nbsp;this topic</span></Link>
               </li>
             ))}
           </ul>
         )}
+        {topics.length > 6 && <p className="mt-4 text-center"><Link to="/topics" className="inline-flex min-h-11 items-center font-semibold text-amber underline underline-offset-4">See all topics →</Link></p>}
         {!quick.topics.isPending && !topics.length && <p className="mt-3 text-center text-sm text-ivory/70">Topics will appear here once the server is reachable.</p>}
       </section>
 
@@ -166,7 +170,20 @@ export default function Home() {
             <li key={n} className="card !p-4"><span className="mb-2 flex size-8 items-center justify-center rounded-full bg-amber font-bold text-ink" aria-hidden>{n}</span><h3 className="text-lg">{t}</h3><p className="mt-1 text-sm text-ivory/80">{d}</p></li>
           ))}
         </ol>
-        <Divider />
+      </section>
+
+      <section className="container-page mt-14 lg:mt-20" aria-labelledby="cta-title">
+        <div className="relative overflow-hidden rounded-3xl border border-amber/40 bg-gradient-to-br from-teal/40 via-ink-soft to-ink p-6 text-center sm:p-10">
+          <div className="absolute inset-0 opacity-[.06] [background:repeating-conic-gradient(#f2b858_0_25%,transparent_0_50%)_0_0/26px_26px]" aria-hidden />
+          <div className="relative mx-auto grid max-w-xl gap-3">
+            <h2 id="cta-title" className="text-3xl sm:text-4xl">Ready for your next step?</h2>
+            <p className="text-ivory/85">A quick climb takes about five minutes. Come back any day and see how far you can go.</p>
+            <div className="mt-2 flex flex-col justify-center gap-3 sm:flex-row">
+              <Button className="min-h-12" loading={quick.starting} disabled={!topics.length} onClick={() => quick.start({ ...rules })}>Start a quick climb <span aria-hidden>→</span></Button>
+              <LinkButton variant="ghost" to="/games/new" className="min-h-12">Host for friends</LinkButton>
+            </div>
+          </div>
+        </div>
       </section>
     </>
   );

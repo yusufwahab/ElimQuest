@@ -52,10 +52,9 @@ function Setup() {
   if (topics.isError) return <ErrorState error={topics.error} onRetry={() => topics.refetch()} />;
   return (
     <>
-      <JourneyStrip current={0} steps={JOURNEY} />
-      <div className="container-page grid max-w-4xl gap-3 py-4 pb-8">
+      <div className="container-page grid max-w-4xl gap-4 py-5 pb-8 lg:py-8">
         <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="eyebrow mb-0.5">Solo</p><h1 className="text-2xl sm:text-3xl">Climb at your own pace</h1></div>
-          <p className="flex items-center gap-2 text-sm text-ivory/70">Same staircase and rules as a live game. No account needed.</p></div>
+          <p className="max-w-xs text-sm text-ivory/75 sm:text-right">Same staircase and rules as a live game. No account needed.</p></div>
         <StepBar steps={['Topics', 'Length', 'Rules & go']} current={step} reached={reached} onGo={go} />
         <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); if (step === 2) start.mutate(); }} noValidate>
           <div className="card grid gap-4 !p-4 sm:!p-5">

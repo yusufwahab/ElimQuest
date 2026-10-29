@@ -8,7 +8,8 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().default(8787),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  PUBLIC_WEB_URL: z.string().url().default('http://localhost:5173'),
+  // The one address used in invite links, QR codes and emails. If several are pasted (comma-separated), the first is used.
+  PUBLIC_WEB_URL: z.string().default('http://localhost:5173').transform((v) => (v.split(/[,\s]+/).find(Boolean) ?? '').replace(/\/+$/, '')).pipe(z.string().url()),
   ALLOWED_ORIGINS: list.default(() => ['http://localhost:5173']),
 
   // Database: pglite is development/test only.

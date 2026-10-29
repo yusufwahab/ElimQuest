@@ -46,12 +46,17 @@ export default function Lobby() {
         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {players.map((p) => <PlayerTile key={p.id} p={p} you={p.id === snap.you.participantId} onRemove={isHost ? () => void run('kick', { participantId: p.id }) : undefined} />)}
         </ul>
-        {players.length === 0 && <p className="text-ivory/70">No one has joined yet — share the room code.</p>}
+        {players.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-line bg-ink-soft/50 p-6 text-center">
+            <p className="font-display text-xl">Waiting for players…</p>
+            <p className="mt-1 text-sm text-ivory/75">{isHost ? 'Share the code, link or QR below. People appear here the moment they join.' : 'Share the room code so friends can join you.'}</p>
+          </div>
+        )}
         {snap.you.role === 'player' && <StickerBar onSend={room.react} />}
+        {isHost && <SharePanel gameId={snap.gameId} />}
       </section>
 
       <aside className="grid content-start gap-4">
-        {isHost && <SharePanel gameId={snap.gameId} />}
         {isHost && (
           <div className="card grid gap-3">
             <h2 className="text-xl">Host controls</h2>

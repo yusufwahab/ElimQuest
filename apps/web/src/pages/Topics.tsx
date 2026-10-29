@@ -34,7 +34,7 @@ export default function Topics() {
         </div>
         {banner}
         <section aria-labelledby="lv"><h2 id="lv" className="mb-3 text-2xl">Difficulty</h2>
-          <p className="mb-3 text-sm text-ivory/75">Questions range from Beginner to Scholar. You don’t pick a level: ElimQuest works out where you are as you play. The questions chosen for a live game stay hidden until each round.</p>
+          <p className="mb-3 text-sm text-ivory/75">Questions range from Beginner to Scholar. When you play or host, choose Mixed or a single band. The questions chosen for a live game stay hidden until each round.</p>
           {t.levels.length ? <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{BANDS.map((b) => { const n = t.levels.filter((l) => l.level >= b.min && l.level <= b.max).reduce((x, l) => x + l.count, 0); return <li key={b.id} className="card !p-4"><p className="font-semibold">{b.name} <span className="font-normal text-ivory/70">— {n} question{n === 1 ? '' : 's'}</span></p><p className="mt-1 text-sm text-ivory/80">{b.blurb}</p></li>; })}</ul> : <p className="text-ivory/70">No published questions yet.</p>}
         </section>
       </div>

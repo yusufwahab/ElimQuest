@@ -58,7 +58,7 @@ function AccountMenu() {
     <div className="flex items-center gap-2">
       <NavLink to="/dashboard" className="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-sm font-semibold hover:bg-white/10">Dashboard</NavLink>
       {user.role !== 'member' && <NavLink to="/admin" className="inline-flex min-h-11 items-center rounded-lg bg-amber/15 px-3 py-2 text-sm font-semibold text-amber hover:bg-amber/25">Admin area</NavLink>}
-      <NavLink to="/account" className="inline-flex min-h-11 max-w-32 items-center truncate rounded-lg px-3 py-2 text-sm hover:bg-white/10" title={user.email}>{user.displayName}</NavLink>
+      <NavLink to="/account" className="inline-flex min-h-11 max-w-32 items-center truncate rounded-lg px-3 py-2 text-sm hover:bg-white/10" title={`${user.displayName} · ${user.email}`}>Account</NavLink>
       <Button variant="ghost" className="!min-h-10 !px-3 text-sm" onClick={async () => { await signOut(); nav('/'); }}>Sign out</Button>
     </div>
   );
@@ -97,10 +97,10 @@ export function Navbar({ transparent = false }: { transparent?: boolean }) {
 export function Footer() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   return (
-    <footer className="mt-16 border-t border-line/60 bg-ink-soft/40 py-8 text-sm text-ivory/75">
+    <footer className="mt-16 border-t border-line/60 bg-ink-soft/40 py-6 text-sm text-ivory/75 sm:py-8">
       <div className="container-page flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p>© {new Date().getFullYear()} {brand.name}. Quiz scores are for fun and learning — never a measure of faith.</p>
-        <ul className="flex flex-wrap gap-x-5 gap-y-1">
+        <ul className="flex flex-wrap gap-x-5 gap-y-0">
           {[['/privacy', 'Privacy'], ['/terms', 'Terms'], ['/help', 'Help']].map(([to, l]) => <li key={to}><Link className="inline-flex min-h-11 items-center underline-offset-4 hover:underline" to={to!}>{l}</Link></li>)}
           <li><button className="inline-flex min-h-11 items-center underline-offset-4 hover:underline" onClick={() => setPrefsOpen(true)}>Accessibility &amp; preferences</button></li>
         </ul>
