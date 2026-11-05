@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { AdventurerChip } from '../lib/adventurer';
 import { prefs as prefStore } from '../lib/storage';
 import { Button, PageLoading } from './ui';
+import { InstallBanner, InstallLink } from './InstallPrompt';
 
 export function Emblem({ size = 32 }: { size?: number }) {
   return (
@@ -86,6 +87,7 @@ export function Navbar({ transparent = false }: { transparent?: boolean }) {
           <NavLink to="/topics" className={link}>Explore topics</NavLink>
           <NavLink to="/how-it-works" className={link}>How it works</NavLink>
           <NavLink to="/practice" className={link}>Practise solo</NavLink>
+          <InstallLink className={`${link({ isActive: false })} w-full text-left font-semibold !text-amber`} />
           <div className="py-1"><AdventurerChip /></div>
           {user ? <><NavLink to="/dashboard" className={link}>Dashboard</NavLink>{user.role !== 'member' && <NavLink to="/admin" className={link}>Admin area</NavLink>}<NavLink to="/account" className={link}>Account</NavLink></> : <NavLink to="/sign-in" className={link}>Sign in</NavLink>}
         </div>
@@ -102,6 +104,7 @@ export function Footer() {
         <p>© {new Date().getFullYear()} {brand.name}. Quiz scores are for fun and learning — never a measure of faith.</p>
         <ul className="flex flex-wrap gap-x-5 gap-y-0">
           {[['/privacy', 'Privacy'], ['/terms', 'Terms'], ['/help', 'Help']].map(([to, l]) => <li key={to}><Link className="inline-flex min-h-11 items-center underline-offset-4 hover:underline" to={to!}>{l}</Link></li>)}
+          <li><InstallLink className="inline-flex min-h-11 items-center underline-offset-4 hover:underline" /></li>
           <li><button className="inline-flex min-h-11 items-center underline-offset-4 hover:underline" onClick={() => setPrefsOpen(true)}>Accessibility &amp; preferences</button></li>
         </ul>
       </div>
@@ -123,6 +126,7 @@ export function SiteLayout({ children }: { children?: ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-amber focus:px-4 focus:py-2 focus:text-ink">Skip to content</a>
       {!online && <div role="alert" className="bg-danger/90 px-4 py-2 text-center text-sm font-semibold text-ink">You’re offline. We’ll reconnect automatically.</div>}
       <Navbar transparent={home} />
+      <InstallBanner />
       <main id="main" ref={main} tabIndex={-1} className="flex-1 outline-none"><Suspense fallback={<PageLoading />}>{children ?? <Outlet />}</Suspense></main>
       <Footer />
     </div>

@@ -5,7 +5,7 @@ import { bandOfLevel } from '@elimquest/game-core';
 import { api } from '../../lib/api';
 import { Alert, EmptyState, ErrorState, PageLoading, Select } from '../../components/ui';
 
-interface Day { day: string; visitors: number; pageviews: number; signups: number; signins: number; signinFailed: number; active: number; gamesOpened: number; gamesFinished: number; players: number; answers: number; practice: number; practiceReached: number }
+interface Day { day: string; visitors: number; pageviews: number; signups: number; signins: number; signinFailed: number; installs: number; active: number; gamesOpened: number; gamesFinished: number; players: number; answers: number; practice: number; practiceReached: number }
 interface Report {
   days: number; from: string; generatedAt: string; trackingSince: string | null; series: Day[];
   totals: Omit<Day, 'day' | 'active'>;
@@ -141,6 +141,7 @@ export function StatsPage() {
           <Tile label="Page views" value={t.pageviews} />
           <Tile label="Sign-ups" value={t.signups} sub={`${nf.format(p.accounts)} accounts in total`} />
           <Tile label="Sign-ins" value={t.signins} sub="New login sessions" />
+          <Tile label="App installs" value={t.installs} sub="Added to a home screen" />
           <Tile label="Failed sign-ins" value={t.signinFailed} sub="Reported by the app" />
           <Tile label="Active accounts" value={r.activeUsers.today} sub={`today · ${nf.format(r.activeUsers.week)} this week · ${nf.format(r.activeUsers.month)} this month`} />
           <Tile label="Games opened" value={t.gamesOpened} sub={`${nf.format(t.gamesFinished)} finished · ${nf.format(p.liveRooms)} live now`} />

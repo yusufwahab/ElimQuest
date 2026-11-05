@@ -138,6 +138,9 @@ export class Stats {
     this.bump(d, 'client_error', key);
   }
 
+  /** The app was added to a home screen (the browser's own `appinstalled` event, reported by the app). */
+  installed() { this.bump(today(), 'install'); }
+
   /** A sign-in is a login session we have not seen before (the session id comes from the verified token). Failed attempts are reported by the app. */
   signinFailed() { this.bump(today(), 'signin_failed'); }
 
@@ -187,7 +190,7 @@ export class Stats {
       const d = daysAgo(days - 1 - i);
       return {
         day: d, visitors: sd.get(`${d}|visitors|`) ?? 0, pageviews: sd.get(`${d}|pageview|`) ?? 0, signups: si.get(d)?.n ?? 0, signins: sd.get(`${d}|signin|`) ?? 0,
-        signinFailed: sd.get(`${d}|signin_failed|`) ?? 0, active: ac.get(d)?.n ?? 0, gamesOpened: op.get(d)?.n ?? 0, gamesFinished: fi.get(d)?.n ?? 0,
+        signinFailed: sd.get(`${d}|signin_failed|`) ?? 0, installs: sd.get(`${d}|install|`) ?? 0, active: ac.get(d)?.n ?? 0, gamesOpened: op.get(d)?.n ?? 0, gamesFinished: fi.get(d)?.n ?? 0,
         players: jo.get(d)?.n ?? 0, answers: an.get(d)?.n ?? 0, practice: pr.get(d)?.n ?? 0, practiceReached: pr.get(d)?.reached ?? 0,
       };
     });
@@ -201,7 +204,7 @@ export class Stats {
     return {
       days, from, generatedAt: new Date().toISOString(), trackingSince: since?.d ?? null, series,
       totals: {
-        visitors: sum('visitors'), pageviews: sum('pageviews'), signups: sum('signups'), signins: sum('signins'), signinFailed: sum('signinFailed'),
+        visitors: sum('visitors'), pageviews: sum('pageviews'), signups: sum('signups'), signins: sum('signins'), signinFailed: sum('signinFailed'), installs: sum('installs'),
         gamesOpened: sum('gamesOpened'), gamesFinished: sum('gamesFinished'), players: sum('players'), answers: sum('answers'), practice: sum('practice'), practiceReached: sum('practiceReached'),
       },
       activeUsers: { today: dau?.n ?? 0, week: wau?.n ?? 0, month: mau?.n ?? 0 },

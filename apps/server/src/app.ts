@@ -80,6 +80,7 @@ export async function createApp(envOverrides: Record<string, string | undefined>
     if (!optedOut(req) && typeof b?.message === 'string') stats.clientError(String(req.headers['user-agent'] ?? ''), b.message.slice(0, 300), typeof b.path === 'string' ? b.path.slice(0, 200) : '/');
     res.status(204).end();
   });
+  app.post('/api/t/install', ctx.limit('track-install', 10, 60_000, (req) => req.ip ?? 'anon'), (req, res) => { if (!optedOut(req)) stats.installed(); res.status(204).end(); });
   app.post('/api/t/signin-failed', ctx.limit('track-fail', 30, 60_000, (req) => req.ip ?? 'anon'), (req, res) => { if (!optedOut(req)) stats.signinFailed(); res.status(204).end(); });
 
   app.use('/api', publicRoutes(ctx), gameRoutes(ctx));

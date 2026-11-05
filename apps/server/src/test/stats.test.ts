@@ -77,6 +77,13 @@ describe('usage statistics (super admin only)', () => {
     expect(st.top.errors[0]).toEqual({ key: 'iOS 15 Safari · TypeError: t.roundRect is not a function · /', n: 2 });
   });
 
+  it('counts app installs (home-screen adds) and honours Do-Not-Track', async () => {
+    const before = (await api(s, 'GET', '/api/admin/stats?days=7', undefined, { bearer: admin })).body.totals.installs;
+    expect((await fetch(`${s.base}/api/t/install`, { method: 'POST' })).status).toBe(204);
+    await fetch(`${s.base}/api/t/install`, { method: 'POST', headers: { dnt: '1' } });
+    expect((await api(s, 'GET', '/api/admin/stats?days=7', undefined, { bearer: admin })).body.totals.installs).toBe(before + 1);
+  });
+
   it('only a super admin can read statistics, the question-quality list or the sign-in log', async () => {
     for (const path of ['/api/admin/stats', '/api/admin/stats/questions', '/api/admin/audit?kind=signins']) {
       expect((await api(s, 'GET', path, undefined, { bearer: reviewer })).status).toBe(403);

@@ -1,0 +1,23 @@
+{
+  "name": "ElimQuest — Islamic knowledge quiz",
+  "short_name": "ElimQuest",
+  "description": "Explore Islamic knowledge. Challenge your friends. Rise together.",
+  "id": "./",
+  "start_url": "./?source=app",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071B2D",
+  "theme_color": "#071B2D",
+  "lang": "en",
+  "categories": ["education", "games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Quick climb", "short_name": "Quick climb", "url": "./practice", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Join a game", "short_name": "Join", "url": "./join", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
