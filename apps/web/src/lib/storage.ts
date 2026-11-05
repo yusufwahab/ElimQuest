@@ -7,10 +7,18 @@ export const store = {
   del: (k: string) => safe(() => localStorage.removeItem(k), undefined),
 };
 
+/** `crypto.randomUUID` is missing before Safari 15.4 and on non-HTTPS pages, so fall back to random bytes. */
+function newId(): string {
+  try { if (typeof crypto.randomUUID === 'function') return crypto.randomUUID(); } catch { /* fall through */ }
+  const b = new Uint8Array(16);
+  try { crypto.getRandomValues(b); } catch { for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); }
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
 /** Random per-browser id used only for best-effort question freshness. Not an account, not tracking across sites. */
 export function deviceId(): string {
   let id = store.get('eq:device');
-  if (!id) { id = crypto.randomUUID(); store.set('eq:device', id); }
+  if (!id) { id = newId(); store.set('eq:device', id); }
   return id;
 }
 

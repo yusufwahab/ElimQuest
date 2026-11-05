@@ -10,7 +10,7 @@ interface Report {
   days: number; from: string; generatedAt: string; trackingSince: string | null; series: Day[];
   totals: Omit<Day, 'day' | 'active'>;
   activeUsers: { today: number; week: number; month: number };
-  top: { pages: { key: string; n: number }[]; referrers: { key: string; n: number }[]; devices: { key: string; n: number }[]; browsers: { key: string; n: number }[] };
+  top: { pages: { key: string; n: number }[]; referrers: { key: string; n: number }[]; devices: { key: string; n: number }[]; browsers: { key: string; n: number }[]; errors: { key: string; n: number }[] };
   platform: { accounts: number; roles: Record<string, number>; gamesByPhase: Record<string, number>; liveRooms: number; avgPlayersPerFinishedGame: number | null; answersAllTime: number; accuracyAllTime: number | null };
 }
 interface QRow { id: string; text: string; level: number; category: string; status: string; answered: number; correct: number; pct: number; reports: number; isFixture: boolean }
@@ -168,6 +168,7 @@ export function StatsPage() {
           <Ranked title="Where visitors come from" rows={r.top.referrers} empty="No visits recorded yet." />
           <Ranked title="Devices" rows={r.top.devices} empty="No visits recorded yet." />
           <Ranked title="Browsers" rows={r.top.browsers} empty="No visits recorded yet." />
+          <Ranked title="App errors on visitors’ devices" rows={r.top.errors} empty="No errors reported. Good." />
         </div>
       </section>
 

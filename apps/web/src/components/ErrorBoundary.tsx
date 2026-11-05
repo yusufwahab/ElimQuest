@@ -1,9 +1,10 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportClientError } from '../lib/track';
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
   static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error, info: ErrorInfo) { console.error('UI error', error.message, info.componentStack); }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('UI error', error.message, info.componentStack); reportClientError(`${error.name}: ${error.message}`); }
   render() {
     if (!this.state.error) return this.props.children;
     return (
@@ -12,6 +13,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
         <p className="text-ivory/80">The page hit an unexpected problem. Your game progress is saved on the server — reloading will bring you back.</p>
         <button className="btn btn-gold" onClick={() => location.reload()}>Reload</button>
         <a className="underline" href="/">Go home</a>
+        <details className="mt-2 text-sm text-ivory/70"><summary className="cursor-pointer">Technical details (for the team)</summary><p className="mt-1 break-words">{this.state.error.name}: {this.state.error.message}</p></details>
       </div>
     );
   }

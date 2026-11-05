@@ -24,3 +24,12 @@ export function trackPageview(path: string) {
 }
 
 export function trackSigninFailed() { if (!optedOut()) post('/api/t/signin-failed'); }
+
+let sent = 0;
+/** Tell our own server that the app hit an error on this device (message + page only), so problems on specific phones can be found and fixed. */
+export function reportClientError(message: string) {
+  if (sent >= 5 || optedOut()) return;
+  if (/ResizeObserver loop|^Script error\.?$|extension/i.test(message)) return;
+  sent++;
+  post('/api/t/error', { message: message.slice(0, 300), path: location.pathname });
+}

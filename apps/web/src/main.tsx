@@ -8,9 +8,13 @@ import { AuthProvider } from './lib/auth';
 import { AdventurerProvider } from './lib/adventurer';
 import { applyPrefs } from './lib/storage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { reportClientError } from './lib/track';
 
 applyPrefs();
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 15_000 } } });
+
+window.addEventListener('error', (e) => reportClientError(e.message || 'Script error'));
+window.addEventListener('unhandledrejection', (e) => reportClientError(`Unhandled: ${(e.reason as Error | undefined)?.message ?? String(e.reason)}`));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

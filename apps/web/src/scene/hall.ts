@@ -13,6 +13,15 @@ export function stairGeometry(W: number, H: number, summit: number) {
 }
 
 
+/** Rounded rectangle path. `ctx.roundRect` only exists in Safari 16+/Chrome 99+, so older phones get an arcTo version instead of a crash. */
+export function roundedRect(ctx: Pick<CanvasRenderingContext2D, 'moveTo' | 'arcTo' | 'closePath'> & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }, x: number, y: number, w: number, h: number, r: number): void {
+  if (typeof ctx.roundRect === 'function') { ctx.roundRect(x, y, w, h, r); return; }
+  const k = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.moveTo(x + k, y);
+  ctx.arcTo(x + w, y, x + w, y + h, k); ctx.arcTo(x + w, y + h, x, y + h, k); ctx.arcTo(x, y + h, x, y, k); ctx.arcTo(x, y, x + w, y, k);
+  ctx.closePath();
+}
+
 export function paintHall(ctx: CanvasRenderingContext2D, W: number, H: number, summit: number, lowPower: boolean): void {
   const GOLD = '#f2b858';
     const g = stairGeometry(W, H, summit);
@@ -105,7 +114,7 @@ export function paintHall(ctx: CanvasRenderingContext2D, W: number, H: number, s
         ctx.fillStyle = glow; ctx.fillRect(lx - R, ly - R, R * 2, R * 2);
         const bw = 13 * p.s * (H / 420) + 4, bh = 22 * p.s * (H / 420) + 6;
         ctx.fillStyle = '#ffe3a3'; ctx.strokeStyle = '#8a5a14'; ctx.lineWidth = Math.max(1, 2 * p.s);
-        ctx.beginPath(); ctx.roundRect(lx - bw / 2, ly - bh / 2, bw, bh, 3); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); roundedRect(ctx, lx - bw / 2, ly - bh / 2, bw, bh, 3); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#8a5a14'; ctx.fillRect(lx - bw / 2 - 1, ly - bh / 2 - 3, bw + 2, 3);
       }
     }

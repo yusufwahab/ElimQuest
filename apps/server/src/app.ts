@@ -75,6 +75,11 @@ export async function createApp(envOverrides: Record<string, string | undefined>
     }
     res.status(204).end();
   });
+  app.post('/api/t/error', ctx.limit('track-error', 20, 60_000, (req) => req.ip ?? 'anon'), (req, res) => {
+    const b = req.body as { message?: unknown; path?: unknown } | undefined;
+    if (!optedOut(req) && typeof b?.message === 'string') stats.clientError(String(req.headers['user-agent'] ?? ''), b.message.slice(0, 300), typeof b.path === 'string' ? b.path.slice(0, 200) : '/');
+    res.status(204).end();
+  });
   app.post('/api/t/signin-failed', ctx.limit('track-fail', 30, 60_000, (req) => req.ip ?? 'anon'), (req, res) => { if (!optedOut(req)) stats.signinFailed(); res.status(204).end(); });
 
   app.use('/api', publicRoutes(ctx), gameRoutes(ctx));

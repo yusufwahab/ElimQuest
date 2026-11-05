@@ -16,7 +16,8 @@ export default defineConfig(({ mode }) => {
     },
     preview: { port: 4173, proxy: { '/api': target, '/socket.io': { target, ws: true } } },
     build: {
-      target: 'es2022',
+      // Older iPhones (iOS 14/15) cannot read the newest JavaScript syntax, so compile down to what Safari 14 understands.
+      target: ['es2020', 'safari14', 'chrome87', 'firefox78', 'edge88'],
       chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: { manualChunks: (id: string) => (id.includes('node_modules/phaser') ? 'phaser' : undefined) },

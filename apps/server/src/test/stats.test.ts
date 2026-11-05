@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { api, correctOptionFor, createGame, joinBot, login, startServer, type TestServer } from './helpers';
-import { browserOf, deviceOf, normalisePath } from '../stats';
+import { browserOf, cleanErrorMessage, deviceOf, normalisePath, platformOf } from '../stats';
 
 let s: TestServer; let admin: string; let reviewer: string; let member: string;
 beforeAll(async () => { s = await startServer(); admin = await login(s, 'admin@dev.local'); reviewer = await login(s, 'reviewer@dev.local'); member = await login(s, 'host@dev.local'); });
@@ -21,6 +21,15 @@ describe('path and device normalisation', () => {
     expect(normalisePath('/wp-login.php')).toBe('/other');
     expect(deviceOf(IPHONE)).toBe('mobile'); expect(deviceOf(CHROME)).toBe('desktop');
     expect(browserOf(CHROME)).toBe('Chrome'); expect(browserOf(IPHONE)).toBe('Safari');
+  });
+});
+
+describe('client error reports', () => {
+  it('labels the platform coarsely and strips URLs and long numbers from messages', () => {
+    expect(platformOf(IPHONE)).toBe('iOS 17 Safari');
+    expect(platformOf('Mozilla/5.0 (iPhone; CPU iPhone OS 15_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1')).toBe('iOS 15 Safari');
+    expect(cleanErrorMessage('TypeError: t.roundRect is not a function at https://x.app/assets/Home-1.js:1:852')).toBe('TypeError: t.roundRect is not a function at');
+    expect(cleanErrorMessage('id 123456789 failed')).toBe('id # failed');
   });
 });
 
@@ -57,6 +66,15 @@ describe('usage statistics (super admin only)', () => {
     expect(after.activeUsers.today).toBeGreaterThanOrEqual(2);
     await api(s, 'GET', '/api/me', undefined, { bearer: t.body.token });   // same session again: not a new sign-in
     expect((await api(s, 'GET', '/api/admin/stats?days=7', undefined, { bearer: admin })).body.totals.signins).toBe(after.totals.signins);
+  });
+
+  it('records app errors from visitors’ devices, grouped by platform, and shows them to the super admin only', async () => {
+    const old = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1';
+    const post = (message: string) => fetch(`${s.base}/api/t/error`, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': old }, body: JSON.stringify({ message, path: '/' }) });
+    expect((await post('TypeError: t.roundRect is not a function')).status).toBe(204);
+    await post('TypeError: t.roundRect is not a function');
+    const st = (await api(s, 'GET', '/api/admin/stats?days=7', undefined, { bearer: admin })).body;
+    expect(st.top.errors[0]).toEqual({ key: 'iOS 15 Safari · TypeError: t.roundRect is not a function · /', n: 2 });
   });
 
   it('only a super admin can read statistics, the question-quality list or the sign-in log', async () => {

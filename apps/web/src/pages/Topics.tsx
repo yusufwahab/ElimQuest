@@ -55,7 +55,7 @@ export default function Topics() {
               <div className="flex flex-1 flex-col gap-2 p-4">
                 <h2 className="text-xl"><Link className="inline-flex min-h-11 items-center" to={`/topics/${t.slug}`}>{t.name}</Link></h2>
                 <p className="flex-1 text-sm text-ivory/80">{t.description}</p>
-                <p className="text-xs text-ivory/70">{t.questionCount} questions · {t.levels.length ? describeLevels(t.levels[0]!.level, t.levels.at(-1)!.level) : 'none yet'}</p>
+                <p className="text-xs text-ivory/70">{t.questionCount} questions · {t.levels.length ? describeLevels(t.levels[0]!.level, t.levels[t.levels.length - 1]!.level) : 'none yet'}</p>
                 <div className="flex flex-wrap gap-2"><LinkButton variant="ghost" className="!min-h-10 !px-4 text-sm" to={`/practice?topic=${t.slug}`}>Practise</LinkButton><LinkButton variant="ghost" className="!min-h-10 !px-4 text-sm" to={`/games/new?topic=${t.slug}`}>Host</LinkButton></div>
               </div>
             </li>

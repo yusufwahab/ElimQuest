@@ -27,7 +27,7 @@ export function HallHero({ avatar, className = '' }: { avatar: AvatarConfig; cla
       c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
       const ctx = c.getContext('2d'); if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      paintHall(ctx, w, h, 10, w < 640);
+      try { paintHall(ctx, w, h, 10, w < 640); } catch (e) { console.warn('Hall scene could not be drawn', e); } // decoration only: never take the page down
       setSize({ w, h });
     };
     const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); });

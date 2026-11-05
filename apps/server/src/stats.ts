@@ -43,6 +43,18 @@ export function browserOf(ua: string): string {
   return 'Other';
 }
 
+/** Coarse platform label for error reports ("iOS 15 Safari"): major version only, never the full user-agent string. */
+export function platformOf(ua: string): string {
+  const ios = /(?:iPhone|iPad|iPod).*? OS (\d+)[_\d]*/i.exec(ua);
+  const android = /Android (\d+)/i.exec(ua);
+  const os = ios ? `iOS ${ios[1]}` : android ? `Android ${android[1]}` : /Windows/i.test(ua) ? 'Windows' : /Mac OS X/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Other OS';
+  return `${os} ${browserOf(ua)}`;
+}
+/** Make an error message safe and groupable: no URLs, no long numbers, capped length. */
+export function cleanErrorMessage(raw: string): string {
+  return raw.replace(/https?:\/\/\S+/g, '').replace(/\d{4,}/g, '#').replace(/\s+/g, ' ').trim().slice(0, 90) || '(no message)';
+}
+
 export interface PageviewInput { path: string; ref?: string; ua: string; ip: string; optOut: boolean }
 export interface SeenUser { id: string; sessionId?: string }
 
@@ -56,6 +68,8 @@ export class Stats {
   private timer: NodeJS.Timeout;
   private lastMaintenance = 0;
   private ownHosts: Set<string>;
+  private errorKeys = new Set<string>();
+  private errorDay = '';
 
   constructor(private db: Db, private env: Env) {
     this.ownHosts = new Set(env.ALLOWED_ORIGINS.map((o) => { try { return new URL(o).hostname.replace(/^www\./, ''); } catch { return ''; } }));
@@ -112,6 +126,16 @@ export class Stats {
     let host = '(direct)';
     try { const h = new URL(i.ref ?? '').hostname.replace(/^www\./, '').toLowerCase(); if (h && !this.ownHosts.has(h)) host = h.slice(0, 60); } catch { /* no referrer */ }
     this.bump(d, 'ref', host);
+  }
+
+  /** Browser errors reported by the app itself, grouped by platform + message. At most 100 distinct kinds a day, so it cannot grow without limit. */
+  clientError(ua: string, message: string, page: string) {
+    if (!ua || BOT.test(ua)) return;
+    const d = today();
+    if (this.errorDay !== d) { this.errorDay = d; this.errorKeys.clear(); }
+    let key = `${platformOf(ua)} · ${cleanErrorMessage(message)}${normalisePath(page) ? ` · ${normalisePath(page)}` : ''}`;
+    if (!this.errorKeys.has(key)) { if (this.errorKeys.size >= 100) key = 'other errors'; else this.errorKeys.add(key); }
+    this.bump(d, 'client_error', key);
   }
 
   /** A sign-in is a login session we have not seen before (the session id comes from the verified token). Failed attempts are reported by the app. */
@@ -181,7 +205,7 @@ export class Stats {
         gamesOpened: sum('gamesOpened'), gamesFinished: sum('gamesFinished'), players: sum('players'), answers: sum('answers'), practice: sum('practice'), practiceReached: sum('practiceReached'),
       },
       activeUsers: { today: dau?.n ?? 0, week: wau?.n ?? 0, month: mau?.n ?? 0 },
-      top: { pages: top('page'), referrers: top('ref'), devices: top('device'), browsers: top('browser') },
+      top: { pages: top('page'), referrers: top('ref'), devices: top('device'), browsers: top('browser'), errors: top('client_error', 15) },
       platform: {
         accounts: roles.reduce((a, r) => a + r.n, 0), roles: Object.fromEntries(roles.map((r) => [r.role, r.n])),
         gamesByPhase: phase, liveRooms: live?.n ?? 0, avgPlayersPerFinishedGame: play?.avg != null ? Math.round(play.avg * 10) / 10 : null,
